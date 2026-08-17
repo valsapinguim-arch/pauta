@@ -78,18 +78,18 @@ O pós-processamento reduz a saída do modelo a uma **única linha melódica**. 
 
 ### 7. PWA offline-first
 
-O service worker faz *precache* de toda a shell da aplicação e do modelo. Depois da primeira visita, a app arranca e transcreve sem rede. Atualizações são explícitas: o utilizador é notificado e escolhe recarregar — nunca se troca a versão a meio de uma transcrição.
+O service worker faz _precache_ de toda a shell da aplicação e do modelo. Depois da primeira visita, a app arranca e transcreve sem rede. Atualizações são explícitas: o utilizador é notificado e escolhe recarregar — nunca se troca a versão a meio de uma transcrição.
 
 ## Limites conhecidos
 
-| Limite | Razão | Tarefa que trata |
-|---|---|---|
-| Só melodia monofónica | Decisão 6 | 8 |
-| Compasso assumido 4/4 | Deteção de compasso fora de âmbito | 9 |
-| Sem quinálteras/tercinas | Grelha de quantização binária | 10 |
-| Duração máxima de áudio limitada | Memória do dispositivo | 19 |
-| Sem sincronização entre dispositivos | Decisão 2 | 16 |
-| Desempenho variável por dispositivo | Decisão 1 | 19 |
+| Limite                               | Razão                              | Tarefa que trata |
+| ------------------------------------ | ---------------------------------- | ---------------- |
+| Só melodia monofónica                | Decisão 6                          | 8                |
+| Compasso assumido 4/4                | Deteção de compasso fora de âmbito | 9                |
+| Sem quinálteras/tercinas             | Grelha de quantização binária      | 10               |
+| Duração máxima de áudio limitada     | Memória do dispositivo             | 19               |
+| Sem sincronização entre dispositivos | Decisão 2                          | 16               |
+| Desempenho variável por dispositivo  | Decisão 1                          | 19               |
 
 ## Fluxo de dados completo
 

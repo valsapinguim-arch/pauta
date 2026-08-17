@@ -35,7 +35,30 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   /prompts/        → plano de desenvolvimento
   ```
 - Não criar pastas fora desta estrutura sem atualizar este ficheiro.
-- Imports usam sempre o alias `@/...`; proibido `../../../` em qualquer novo ficheiro.
+- Uma só `package.json` na raiz — este projeto NÃO é mono-repo. Não criar workspaces nem
+  sub-pacotes (Tarefa 0, decisão 1).
+- Imports usam sempre o alias `@/...`; a regra `no-restricted-imports` do ESLint bloqueia imports
+  relativos ascendentes (`../`) e não se desativa por ficheiro nem com `eslint-disable`.
+
+## Tooling (Tarefa 0)
+
+- Formatação é decidida exclusivamente pelo Prettier. Nunca adicionar regras de formatação ao
+  ESLint, nem discutir estilo em revisão de código — corre-se `pnpm format:write` e segue-se.
+- Proibido `any`, `@ts-ignore` e `@ts-expect-error` sem um comentário que justifique e refira a
+  tarefa onde a exceção foi aceite.
+- Nenhum ficheiro fora da `NETWORK_ALLOWLIST` de `eslint.config.js` pode usar `fetch`,
+  `XMLHttpRequest`, `WebSocket`, `EventSource` ou `navigator.sendBeacon` — incluindo as formas
+  qualificadas (`window.fetch`, `globalThis.fetch`, `self.fetch`). A lista começou vazia e cresce
+  uma entrada por vez, com justificação na tarefa que a acrescenta.
+- Commits seguem Conventional Commits; o hook `commit-msg` valida isto e não se contorna com
+  `--no-verify`. O hook `pre-commit` corre `lint-staged` e também não se contorna.
+- **TypeScript está fixado na linha 6.x de propósito**: o `typescript-eslint` 8.x não suporta a API
+  do TypeScript 7 e `pnpm lint` falha por completo se o TS subir. Só atualizar para TS 7 quando o
+  `typescript-eslint` o suportar (ver
+  [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)) —
+  e verificar `pnpm lint` na mesma alteração.
+- `tsconfig.json` não usa `baseUrl` (removido no TS 7); os `paths` resolvem-se relativamente ao
+  próprio ficheiro. Não reintroduzir `baseUrl`.
 
 ## Pipeline de transcrição
 
