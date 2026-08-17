@@ -80,6 +80,22 @@
   text-align: center;
 }
 
+/* Andaime da Tarefa 2: substituído pelos componentes Toast/Alert na Tarefa 3. */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
 /* Andaime da Tarefa 1: desaparece com a Tarefa 3. */
 .debug {
   color: var(--color-text-muted);

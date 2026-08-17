@@ -3,14 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover: necessário para as safe areas em iOS quando a app
-         corre instalada (Tarefa 2). -->
+         corre instalada. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       name="description"
       content="Ouve uma voz ou um instrumento e escreve a pauta. Corre no teu dispositivo — o áudio não sai daqui."
     />
     <title>pauta</title>
-    <!-- O manifest, os ícones e as meta tags de iOS são da Tarefa 2. -->
+
+    <!-- rel="manifest" e o registo do service worker são injetados pelo
+         vite-plugin-pwa — ver vite.config.ts. -->
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/svg+xml" href="/pwa-icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+
+    <!-- Cores alinhadas com --color-accent em src/styles/tokens.css, claro e
+         escuro (Tarefa 2, decisão 6). -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1c5d4a" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#5fbfa3" />
+
+    <!-- "Adicionar ao ecrã principal" em iOS: sem beforeinstallprompt, o Safari
+         depende só destas meta tags. status-bar-style "default" mantém a
+         barra de estado opaca e fora do conteúdo — evita ter de resolver já
+         o padding de safe-area que "black-translucent" exigiria (fica para
+         quando a Tarefa 3 desenhar o layout a sério). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="pauta" />
   </head>
   <body>
     <div id="root"></div>
