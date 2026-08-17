@@ -27,6 +27,21 @@ export const idle = {
    */
   limitationNotice:
     'Funciona com uma voz ou um instrumento de cada vez. Com vários instrumentos ao mesmo tempo — uma banda, uma música do rádio — o resultado não vai prestar.',
+
+  /**
+   * Explicação prévia de permissão — Tarefa 4, decisão 6.
+   *
+   * Mostrada só uma vez (`useRecordingFlow`, `needsPermissionExplainer`),
+   * antes de `getUserMedia` disparar o diálogo do próprio browser. Um pedido
+   * de permissão sem contexto é recusado com frequência, e a recusa é difícil
+   * de reverter — vale mais um ecrã a explicar do que perder o utilizador
+   * aqui.
+   */
+  micExplainerTitle: 'Usar o microfone',
+  micExplainerBody:
+    'A seguir vais ver o pedido de permissão do browser. O áudio fica só neste dispositivo — nunca é enviado para lado nenhum.',
+  micExplainerConfirm: 'Continuar',
+  micExplainerCancel: 'Agora não',
 } as const
 
 export const recording = {
@@ -55,24 +70,4 @@ export const result = {
   /* TODO Tarefa 15: os cinco formatos reais (MusicXML, MIDI, PNG, PDF,
      partilha). Este é só o slot, desativado. */
   export: 'Exportar',
-} as const
-
-export const errors = {
-  /* O catálogo a sério é da Tarefa 21. Aqui só o suficiente para o error
-     boundary ter o que mostrar desde o primeiro dia. */
-  unexpectedTitle: 'Algo correu mal',
-  unexpectedBody:
-    'A app encontrou um erro inesperado. Recarregar costuma resolver — as transcrições que já tinhas guardadas não se perdem.',
-  reload: 'Recarregar',
-
-  /**
-   * `ErrorView` — mensagem genérica de propósito. Sem catálogo (Tarefa 21),
-   * mostrar `state.code` cru ao utilizador seria expor um detalhe técnico que
-   * o `AGENTS.md` dessa tarefa vai proibir; fica à espera do catálogo, não
-   * adiantado aqui.
-   */
-  viewTitle: 'Não foi possível continuar',
-  viewBody: 'Alguma coisa correu mal. Podes voltar ao início e tentar outra vez.',
-  retry: 'Tentar novamente',
-  restart: 'Voltar ao início',
 } as const

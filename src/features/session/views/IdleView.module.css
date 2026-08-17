@@ -24,3 +24,24 @@
 .limitation {
   max-width: 28rem;
 }
+
+.explainer {
+  max-width: 26rem;
+  text-align: center;
+}
+
+.explainerTitle {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-3);
+}
+
+.explainerBody {
+  color: var(--color-text-muted);
+}
+
+.explainerActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}

@@ -29,6 +29,12 @@
   color: var(--color-text-muted);
 }
 
+/* Aos 50 s (Tarefa 4, decisão 3) — aviso visual antes do corte automático
+   aos 60 s. */
+.elapsedWarning {
+  color: var(--color-danger);
+}
+
 .level {
   max-width: 20rem;
 }

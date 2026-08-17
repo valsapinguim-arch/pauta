@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    /* Nem DOM, nem WebWorker: o AudioWorkletGlobalScope é um TERCEIRO tipo de
+       ambiente global, distinto dos dois. `@types/audioworklet` declara o seu
+       próprio conjunto completo e independente (Event, MessagePort,
+       AudioWorkletProcessor, registerProcessor, sampleRate, currentTime, …) —
+       combiná-lo com `lib.dom`/`lib.webworker` duplicaria identificadores
+       (ambos declaram `Event`, `MessagePort`, etc. de formas incompatíveis).
+       `lib: ["ES2022"]` dá só os built-ins de JavaScript (Array, Promise,
+       Float32Array, …), que não colidem com nada. */
+    "lib": ["ES2022"],
+    "types": ["audioworklet"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/workers/*.worklet.ts"]
+}

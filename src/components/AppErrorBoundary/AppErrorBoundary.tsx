@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { errors } from '@/strings'
+import { crash } from '@/strings'
 import styles from './AppErrorBoundary.module.css'
 
 interface Props {
@@ -49,10 +49,10 @@ export class AppErrorBoundary extends Component<Props, State> {
 
     return (
       <div className={styles.container} role="alert">
-        <h1 className={styles.title}>{errors.unexpectedTitle}</h1>
-        <p className={styles.body}>{errors.unexpectedBody}</p>
+        <h1 className={styles.title}>{crash.title}</h1>
+        <p className={styles.body}>{crash.body}</p>
         <button type="button" className={styles.button} onClick={this.handleReload}>
-          {errors.reload}
+          {crash.reload}
         </button>
       </div>
     )

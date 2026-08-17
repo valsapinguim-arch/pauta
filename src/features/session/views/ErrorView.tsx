@@ -1,29 +1,36 @@
 import { Alert, Button } from '@/components'
-import { errors } from '@/strings'
+import { genericError, genericRestart, isKnownErrorCode, microphoneErrors } from '@/strings'
 import styles from './ErrorView.module.css'
 
 export interface ErrorViewProps {
+  code: string
   recoverable: boolean
-  /** Já real: `session.reset()` volta a `idle`. Sem catálogo de erros
-   *  (Tarefa 21), "recomeçar" é a única ação seguramente correta para
-   *  qualquer código de erro — nunca se tenta adivinhar uma recuperação mais
-   *  específica aqui. */
+  /** Já real: `session.reset()` volta a `idle`. Independentemente do texto do
+   *  botão, a ação é sempre "voltar ao início" — nunca se tenta adivinhar uma
+   *  recuperação mais específica (ex.: repetir automaticamente a gravação)
+   *  aqui. */
   onRestart: () => void
 }
 
 /**
- * Mensagem genérica de propósito — ver `@/strings`, `errors.viewTitle`. Sem
- * catálogo ainda (Tarefa 21), mostrar o código cru ao utilizador seria expor
- * um detalhe técnico; fica de fora até essa tarefa.
+ * Erros de captura (Tarefa 4, decisão 9) mostram a sua mensagem própria —
+ * `microphoneErrors[code]`. Um código desconhecido (de uma tarefa futura que
+ * ainda não tenha entrado no mapa, ou de antes de existir catálogo completo,
+ * Tarefa 21) cai no genérico de `@/strings`; mostrar `code` cru seria expor
+ * um detalhe técnico.
  */
-export function ErrorView({ recoverable, onRestart }: ErrorViewProps) {
+export function ErrorView({ code, recoverable, onRestart }: ErrorViewProps) {
+  const known = isKnownErrorCode(code) ? microphoneErrors[code] : null
+  const message = known ?? genericError
+  const actionLabel = known ? known.action : recoverable ? genericError.action : genericRestart
+
   return (
     <div className={styles.container}>
-      <Alert tone="error" title={errors.viewTitle}>
-        {errors.viewBody}
+      <Alert tone="error" title={message.title}>
+        {message.body}
       </Alert>
       <Button variant="primary" onClick={onRestart}>
-        {recoverable ? errors.retry : errors.restart}
+        {actionLabel}
       </Button>
     </div>
   )
