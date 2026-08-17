@@ -27,6 +27,36 @@ export const idle = {
    */
   limitationNotice:
     'Funciona com uma voz ou um instrumento de cada vez. Com vários instrumentos ao mesmo tempo — uma banda, uma música do rádio — o resultado não vai prestar.',
+
+  /**
+   * Explicação prévia de permissão — Tarefa 4, decisão 6.
+   *
+   * Mostrada só uma vez (`useRecordingFlow`, `needsPermissionExplainer`),
+   * antes de `getUserMedia` disparar o diálogo do próprio browser. Um pedido
+   * de permissão sem contexto é recusado com frequência, e a recusa é difícil
+   * de reverter — vale mais um ecrã a explicar do que perder o utilizador
+   * aqui.
+   */
+  micExplainerTitle: 'Usar o microfone',
+  micExplainerBody:
+    'A seguir vais ver o pedido de permissão do browser. O áudio fica só neste dispositivo — nunca é enviado para lado nenhum.',
+  micExplainerConfirm: 'Continuar',
+  micExplainerCancel: 'Agora não',
+
+  /** Enquanto `decodeAudioData` corre — Tarefa 5, decisão 2. */
+  decodingFile: 'A preparar o ficheiro…',
+
+  /**
+   * Oferta de truncagem — Tarefa 5, decisão 4. Não é um erro (fica fora de
+   * `@/strings/errors.ts`): o ficheiro é válido, só mais longo do que a app
+   * consegue transcrever de uma vez. A duração original mostra-se ao lado,
+   * formatada com `formatElapsed` — não faz parte deste texto estático.
+   */
+  truncateTitle: 'Ficheiro mais longo do que o limite',
+  truncateBody:
+    'Só é possível transcrever até 60 segundos de cada vez. Continuar só com o início do ficheiro?',
+  truncateConfirm: 'Usar os primeiros 60 segundos',
+  truncateCancel: 'Cancelar',
 } as const
 
 export const recording = {
@@ -55,24 +85,4 @@ export const result = {
   /* TODO Tarefa 15: os cinco formatos reais (MusicXML, MIDI, PNG, PDF,
      partilha). Este é só o slot, desativado. */
   export: 'Exportar',
-} as const
-
-export const errors = {
-  /* O catálogo a sério é da Tarefa 21. Aqui só o suficiente para o error
-     boundary ter o que mostrar desde o primeiro dia. */
-  unexpectedTitle: 'Algo correu mal',
-  unexpectedBody:
-    'A app encontrou um erro inesperado. Recarregar costuma resolver — as transcrições que já tinhas guardadas não se perdem.',
-  reload: 'Recarregar',
-
-  /**
-   * `ErrorView` — mensagem genérica de propósito. Sem catálogo (Tarefa 21),
-   * mostrar `state.code` cru ao utilizador seria expor um detalhe técnico que
-   * o `AGENTS.md` dessa tarefa vai proibir; fica à espera do catálogo, não
-   * adiantado aqui.
-   */
-  viewTitle: 'Não foi possível continuar',
-  viewBody: 'Alguma coisa correu mal. Podes voltar ao início e tentar outra vez.',
-  retry: 'Tentar novamente',
-  restart: 'Voltar ao início',
 } as const

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Toast } from '@/components'
+import { useFilePicker, useRecordingFlow } from '@/features/capture'
+import type { FilePickerApi, RecordingFlowApi } from '@/features/capture'
 import { useAppUpdate, useInstallPrompt } from '@/features/pwa'
 import {
   ErrorView,
@@ -9,7 +11,7 @@ import {
   ResultView,
   useSession,
 } from '@/features/session'
-import type { SessionState } from '@/features/session'
+import type { SessionApi, SessionState } from '@/features/session'
 import { app, install, update } from '@/strings'
 import styles from './App.module.css'
 
@@ -23,6 +25,8 @@ function assertNever(value: never): never {
 export function App() {
   const session = useSession()
   const { state } = session
+  const recording = useRecordingFlow(session)
+  const filePicker = useFilePicker(session)
 
   const { canInstall, promptInstall, isIosManualInstall } = useInstallPrompt(state.status)
   const { showUpdatePrompt, offlineReady, dismissOfflineReady, updateNow } = useAppUpdate(
@@ -38,7 +42,7 @@ export function App() {
         <p className={styles.tagline}>{app.tagline}</p>
       </header>
 
-      <div className={styles.stage}>{renderStage(state, session)}</div>
+      <div className={styles.stage}>{renderStage(state, session, recording, filePicker)}</div>
 
       <Toast
         open={(canInstall || isIosManualInstall) && !installDismissed}
@@ -77,19 +81,41 @@ export function App() {
  * estado tem exatamente uma view; nunca duas ao mesmo tempo, nunca uma view a
  * decidir sozinha o que mostrar a partir de flags de outro estado.
  */
-function renderStage(state: SessionState, session: ReturnType<typeof useSession>) {
+function renderStage(
+  state: SessionState,
+  session: SessionApi,
+  recording: RecordingFlowApi,
+  filePicker: FilePickerApi,
+) {
   switch (state.status) {
     case 'idle':
-      // TODO Tarefa 4: onStartRecording. TODO Tarefa 5: onPickFile.
-      return <IdleView />
+      return (
+        <IdleView
+          onStartRecording={recording.requestStart}
+          needsPermissionExplainer={recording.needsPermissionExplainer}
+          onConfirmPermissionExplainer={recording.confirmPermissionExplainer}
+          onPickFile={filePicker.pickFile}
+          fileInputRef={filePicker.fileInputRef}
+          onFileInputChange={filePicker.handleFileInputChange}
+          onFileDrop={filePicker.handleDrop}
+          decodingFile={filePicker.decoding}
+          pendingTruncation={
+            filePicker.pendingTruncation && {
+              originalDurationMs: filePicker.pendingTruncation.originalDurationMs,
+              onConfirm: filePicker.pendingTruncation.confirm,
+              onCancel: filePicker.pendingTruncation.cancel,
+            }
+          }
+        />
+      )
 
     case 'recording':
       return (
         <RecordingView
           level={state.level}
           elapsedMs={state.elapsedMs}
-          onStop={session.stopRecording}
-          onCancel={session.cancel}
+          onStop={recording.stop}
+          onCancel={recording.cancel}
         />
       )
 
@@ -102,7 +128,9 @@ function renderStage(state: SessionState, session: ReturnType<typeof useSession>
       return <ResultView document={state.document} onNewTranscription={session.reset} />
 
     case 'error':
-      return <ErrorView recoverable={state.recoverable} onRestart={session.reset} />
+      return (
+        <ErrorView code={state.code} recoverable={state.recoverable} onRestart={session.reset} />
+      )
 
     default:
       return assertNever(state)

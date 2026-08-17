@@ -29,8 +29,9 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa)
   /src/components/ → inventário fechado de 7 (Button, IconButton, Sheet, Progress, Alert, Spinner,
                      Toast) + icons/ e cx.ts (suporte, fora do inventário)
-  /src/workers/    → Web Workers
-  /src/lib/        → lógica pura (sem DOM, sem I/O)
+  /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
+  /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
+                     partilhada entre workers/worklets e o resto da app (ex.: calculateRms)
   /src/styles/     → tokens
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
@@ -100,6 +101,76 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
 - Trabalho de descodificação ou inferência NUNCA corre na thread principal. Se bloqueia a UI, vai
   para um worker.
 
+## Captura de microfone (Tarefa 4)
+
+- Captura de áudio usa Web Audio + `AudioWorkletNode` (`src/workers/recorder.worklet.ts`); proibido
+  `MediaRecorder` (formato comprimido dependente do browser) e proibido `ScriptProcessorNode`
+  (descontinuado, corre na thread principal).
+- `echoCancellation`, `noiseSuppression` e `autoGainControl` são sempre `false` nas constraints de
+  `getUserMedia` (`AUDIO_CONSTRAINTS` em `useMicrophone.ts`) — degradam a transcrição musical
+  (cortam harmónicos e notas sustentadas, alteram dinâmicas). Não ativar sem medição documentada que
+  demonstre o contrário; é contraintuitivo para quem vem de captura de voz, e é fácil "corrigir" isto
+  de boa-fé sem essa medição.
+- Nunca forçar `sampleRate` no `AudioContext` de captura; a reamostragem para 22050 Hz é
+  responsabilidade exclusiva do worker de áudio (Tarefa 6).
+- `getUserMedia` nunca é chamado no arranque nem sem explicação prévia — só depois de uma ação
+  explícita de gravar, e só depois de mostrar a explicação uma vez por dispositivo
+  (`needsPermissionExplainer` em `useRecordingFlow`, persistida em `localStorage`).
+- Toda a saída da gravação (normal, cancelada, com erro, ou o próprio componente a desmontar) para
+  as tracks do stream e fecha o `AudioContext` — `useMicrophone`'s `cleanup()` é o único sítio que o
+  faz, chamado a partir de `stop`, `cancel`, e de um efeito de desmontagem. Não duplicar esta lógica
+  noutro sítio.
+- Erros de captura são estados nomeados (`permission-denied`, `no-microphone`, `microphone-busy`,
+  `not-supported`, `too-quiet`, `MicrophoneErrorCode` em `useMicrophone.ts`), cada um com mensagem e
+  ação próprias em `@/strings/errors.ts` (`microphoneErrors`); proibido colapsar num erro genérico ou
+  mostrar `state.code` cru ao utilizador.
+- A gravação tem limite máximo de duração com corte automático (`MAX_RECORDING_MS`,
+  `WARNING_THRESHOLD_MS`, exportados de `@/features/capture`); proibido gravação sem limite.
+- **AudioWorklet é um TERCEIRO tipo de ambiente global** (nem DOM, nem WebWorker) — ficheiros
+  `src/workers/*.worklet.ts` usam `tsconfig.worklet.json` (`types: ["audioworklet"]`, `lib:
+["ES2022"]` só) e ficam excluídos de `tsconfig.json` e de `tsconfig.worker.json`. `pnpm typecheck`
+  corre os três tsconfigs.
+- **Bundling de um AudioWorklet no Vite exige o sufixo `?worker&url`**
+  (`import url from '@/workers/x.worklet.ts?worker&url'`), nunca `new URL('./x.worklet.ts',
+import.meta.url)` — este último não passa o ficheiro pelo pipeline de build (TypeScript não é
+  transpilado, imports não são resolvidos) e falha só em runtime, silenciosamente, quando
+  `audioWorklet.addModule()` tenta carregar `.ts` cru como JavaScript. Ao adicionar um novo worklet,
+  confirmar sempre com `pnpm build` que aparece como chunk próprio em `dist/assets/`.
+- Funções pequenas e puras partilhadas entre o worklet e o resto da app (ex.: `calculateRms`) vivem
+  em `@/lib/audio/` — corre em Node (testável) e no `AudioWorkletGlobalScope` (sem `lib.dom`) sem
+  alterações, porque só usa `Float32Array` e matemática, nada específico de nenhum dos dois ambientes.
+- Nunca mutar `ref.current` diretamente no corpo de um componente/hook durante o render (só dentro de
+  efeitos, handlers ou funções assíncronas) — a versão instalada do `eslint-plugin-react-hooks`
+  bloqueia isto com erro (`react-hooks/refs`), mesmo para o padrão comum de "manter uma ref sempre
+  atualizada com as props mais recentes".
+
+## Importação de ficheiro (Tarefa 5)
+
+- A descodificação de áudio usa exclusivamente `AudioContext.decodeAudioData`; proibido introduzir
+  `ffmpeg.wasm` ou qualquer descodificador em JavaScript — o custo de bundle não é justificável
+  neste projeto.
+- Formatos são validados por tentativa de descodificação, nunca por extensão ou MIME type; a
+  extensão só serve para o filtro do seletor de ficheiros (`accept="audio/*"`).
+- Ficheiros de vídeo não são aceites como entrada, mesmo que o browser os descodifique — não são
+  oferecidos no seletor (`accept="audio/*"` já os exclui); não acrescentar deteção extra por
+  extensão ou MIME para os bloquear no _drop_, isso contradiria a validação por tentativa acima.
+- As Tarefas 4 e 5 convergem no mesmo formato de saída (`Float32Array` + `sampleRate`); proibido
+  que o resto do pipeline saiba se o áudio veio do microfone ou de um ficheiro. Um `AudioBuffer`
+  multicanal é reduzido a um só canal com `downmixToMono` (`@/lib/audio/downmixToMono.ts`) antes de
+  sair de `useFilePicker` — é o que garante a mesma forma de saída de um ficheiro estéreo.
+- O `File` e o `ArrayBuffer` originais são libertados imediatamente após a descodificação (a
+  variável sai de âmbito assim que `processFile` termina); apenas o PCM e o nome do ficheiro
+  sobrevivem, guardados em `AudioSource` (`session.startProcessing({ kind: 'file', name })`).
+- Áudio que exceda a duração máxima (`MAX_RECORDING_MS`, partilhado com a Tarefa 4) é truncado com
+  confirmação do utilizador (`pendingTruncation` em `useFilePicker`, mostrado como _sheet_ em
+  `IdleView`), nunca rejeitado silenciosamente nem processado por inteiro.
+- Erros de importação (`FileErrorCode` em `useFilePicker.ts`) partilham o catálogo da Tarefa 4
+  (`getErrorMessage` em `@/strings/errors.ts`); `too-quiet` é literalmente o mesmo código nos dois
+  caminhos de entrada — não redefinir a sua mensagem em `fileErrors`.
+- A zona de _drop_ em `IdleView` só aparece com `@media (pointer: fine)` — deteção por CSS, nunca
+  por JavaScript (`navigator.maxTouchPoints` ou equivalente); o botão "Usar um ficheiro de áudio" é
+  o único caminho garantido em todos os dispositivos.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
@@ -119,9 +190,10 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   fontes, scripts ou imagens de CDN no service worker — todos os assets são locais.
 - Não registar `notificationclick`, `push` ou background sync no service worker; a app não tem
   servidor e não usa estas capacidades.
-- `src/sw.ts` e `src/workers/**/*.ts` usam `tsconfig.worker.json` (lib `WebWorker`, não `DOM`) e
-  ficam excluídos do `tsconfig.json` principal — `pnpm typecheck` corre os dois. Não os remover de
-  `exclude` no tsconfig principal nem apagar `tsconfig.worker.json`.
+- `src/sw.ts` e `src/workers/**/*.ts` (exceto `*.worklet.ts`, que tem o seu próprio
+  `tsconfig.worklet.json` — ver Tarefa 4) usam `tsconfig.worker.json` (lib `WebWorker`, não `DOM`) e
+  ficam excluídos do `tsconfig.json` principal — `pnpm typecheck` corre os três tsconfigs (principal,
+  worker, worklet). Não remover nenhum deles de `exclude`/`include` nem apagar os ficheiros.
 - Os ícones em `public/` (`pwa-*.png`, `maskable-icon-*.png`, `apple-touch-icon-*.png`,
   `favicon.ico`) são gerados por `pnpm generate-pwa-assets` a partir de `public/pwa-icon.svg`
   (`pwa-assets.config.ts`) — nunca editados à mão nem gerados por outra ferramenta. Alterar o ícone

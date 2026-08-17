@@ -35,5 +35,8 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/sw.ts", "src/workers/**/*.ts"]
+  "include": ["src/sw.ts", "src/workers/**/*.ts"],
+  /* Os AudioWorklets (Tarefa 4) são um TERCEIRO tipo de ambiente global,
+     nem DOM nem WebWorker — têm o seu próprio tsconfig.worklet.json. */
+  "exclude": ["src/workers/*.worklet.ts"]
 }

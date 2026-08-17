@@ -1,21 +1,27 @@
 import { Button, IconButton, Progress } from '@/components'
 import { CloseIcon, StopIcon } from '@/components/icons'
+import { cx } from '@/components/cx'
+import { WARNING_THRESHOLD_MS } from '@/features/capture'
 import { formatElapsed } from '@/features/session/formatElapsed'
 import { recording } from '@/strings'
 import styles from './RecordingView.module.css'
 
 export interface RecordingViewProps {
-  /** Vem de `state.level`/`state.elapsedMs` (Tarefa 1) — o valor já está
-   *  ligado, só falta quem o alimente com RMS real do microfone (Tarefa 4). */
+  /** Vem de `state.level`/`state.elapsedMs` (Tarefa 1), alimentado com RMS
+   *  real do microfone desde a Tarefa 4 (`useMicrophone`, via
+   *  `useRecordingFlow`). */
   level: number
   elapsedMs: number
-  /** Já reais: parar e cancelar são transições que o reducer trata desde a
-   *  Tarefa 1 — nada aqui espera pela Tarefa 4. */
   onStop: () => void
   onCancel: () => void
 }
 
 export function RecordingView({ level, elapsedMs, onStop, onCancel }: RecordingViewProps) {
+  /* Ver Tarefa 4, decisão 3: aviso visual perto do limite de 60 s. O corte
+     automático em si acontece em `useMicrophone`, não aqui — isto é só o
+     "estás quase lá", não o limite. */
+  const nearLimit = elapsedMs >= WARNING_THRESHOLD_MS
+
   return (
     <div className={styles.container}>
       <IconButton
@@ -31,7 +37,7 @@ export function RecordingView({ level, elapsedMs, onStop, onCancel }: RecordingV
           <StopIcon aria-hidden />
           {recording.stop}
         </Button>
-        <p className={styles.elapsed} aria-live="off">
+        <p className={cx(styles.elapsed, nearLimit && styles.elapsedWarning)} aria-live="off">
           {formatElapsed(elapsedMs)}
         </p>
       </div>

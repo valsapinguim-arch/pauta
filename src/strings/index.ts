@@ -1,2 +1,12 @@
-export { app, errors, idle, processing, processingStage, recording, result } from './app'
+export { app, idle, processing, processingStage, recording, result } from './app'
+export {
+  crash,
+  fileErrors,
+  generic as genericError,
+  genericRestart,
+  getErrorMessage,
+  isKnownErrorCode,
+  microphoneErrors,
+} from './errors'
+export type { ErrorMessage } from './errors'
 export { install, update } from './pwa'
