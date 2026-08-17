@@ -36,8 +36,11 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
   /src/sw.ts       → service worker (injectManifest — Tarefa 2)
-  /public/models/  → modelo Basic Pitch empacotado
+  /public/models/basic-pitch/ → modelo Basic Pitch empacotado (Tarefa 7)
+  /public/models/tfjs-wasm/   → binários WASM do TensorFlow.js (Tarefa 7)
   /public/*.png, /public/favicon.ico, /public/*.svg → ícones PWA (gerados, Tarefa 2)
+  /scripts/        → utilitários de linha de comandos, corridos à mão (ex.: copy-model-assets.js,
+                     Tarefa 7) — nunca parte do build nem do bundle da app
   /docs/           → arquitetura
   /prompts/        → plano de desenvolvimento
   ```
@@ -212,8 +215,10 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   transcrição (Tarefa 7), que carrega um modelo caro e é mantido vivo — não confundir os dois
   ciclos de vida.
 - Cancelar durante `processing` chama `worker.terminate()` (nunca uma _flag_ verificada a meio: a
-  convolução em curso não é interrompível de dentro) e só depois `session.cancel()`
-  (`usePreprocessAudio.cancel`, ligado a `ProcessingView.onCancel` em `App.tsx`).
+  convolução em curso não é interrompível de dentro). `usePreprocessAudio.cancel()` só termina o
+  worker de áudio — não mexe na sessão (ver Tarefa 7: há dois workers no pipeline agora, e
+  `session.cancel()` só pode ser chamado uma vez; `App.tsx` é que termina os dois e só depois cancela
+  a sessão).
 - O PCM capturado (Tarefas 4/5) NUNCA vive no estado da sessão (`SessionState`) — é entregue
   diretamente de `useRecordingFlow`/`useFilePicker` a `usePreprocessAudio.run()` por chamada direta,
   não por um campo em `session.state`. Motivo: o mecanismo `?state=processing` (Tarefa 3) força esse
@@ -221,6 +226,66 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   de desenvolvimento forjado (com PCM vazio) seria um efeito secundário invisível e errado desse
   mecanismo. Não reintroduzir `audio`/`pcm` em `SessionState`/`SessionAction` para "simplificar" a
   passagem de dados — é uma armadilha já considerada e rejeitada.
+
+## Motor de transcrição (Tarefa 7)
+
+- TensorFlow.js e `@spotify/basic-pitch` só podem ser importados por `src/workers/transcribe.worker.ts`;
+  proibido importá-los na thread principal ou em qualquer outro módulo (incluindo o barrel
+  `@/features/transcribe/index.ts` — nunca reexportar de lá algo que force esse import, nem sequer um
+  valor como `MODEL_THRESHOLDS`; ver a nota abaixo sobre porque o protocolo de mensagens vive num
+  ficheiro à parte). Mantê-los confinados é o que permite testar o resto do pipeline sem modelo.
+- **`@spotify/basic-pitch` traz a sua própria versão de `@tensorflow/tfjs` (`^3.2.0`, 2021).** Sem um
+  override a forçar a árvore inteira a partilhar a nossa versão (`pnpm-workspace.yaml`, campo
+  `overrides`), ficam DUAS instâncias de tfjs no mesmo worker — uma delas nunca vê o backend
+  registado pela outra (`tf.setBackend('wasm')` numa instância, `model.execute()` a correr contra o
+  registo da outra) e a inferência falha com "backend not found", só em runtime, nunca no build nem
+  no typecheck. Confirmar com `pnpm why @tensorflow/tfjs` que só aparece UMA versão sempre que esta
+  dependência ou o override mudarem.
+- A saída do modelo é convertida para `NoteEvent[]` (`@/lib/types.ts`) dentro do worker; nenhuma
+  estrutura do TensorFlow.js (tensores, `GraphModel`) nem do `@spotify/basic-pitch`
+  (`NoteEventTime`, `pitchBends`) atravessa a fronteira do worker.
+- O modelo (`public/models/basic-pitch/`) e os binários WASM (`public/models/tfjs-wasm/`) são
+  servidos de `/models/` na própria origem — nunca de CDN. São copiados de `node_modules` para
+  `public/` por `pnpm copy-model-assets` (`scripts/copy-model-assets.js`), corrido à mão e
+  versionado — não regenerado a cada build (mesmo padrão de `pnpm generate-pwa-assets`, Tarefa 2).
+  Depois de atualizar `@spotify/basic-pitch` ou `@tensorflow/tfjs-backend-wasm`, correr o script de
+  novo e rever o diff dos binários.
+- `public/models/**` fica sempre FORA do precache manifest da shell (`injectManifest.globIgnores` em
+  `vite.config.ts`) — tem cache própria e dedicada em `src/sw.ts` desde a Tarefa 2
+  (`pauta-model-v1`, `StaleWhileRevalidate`, rota `/models/**`). Uma atualização da app nunca deve
+  obrigar a descarregar o modelo outra vez.
+- O worker de transcrição é reutilizado entre transcrições e o modelo carrega uma vez por sessão
+  (`basicPitch`, estado de módulo em `transcribe.worker.ts`) — proibido recriar o worker por
+  transcrição. É o oposto do worker de áudio (Tarefa 6), descartável; não confundir os dois ciclos
+  de vida.
+- Cancelar uma transcrição faz `worker.terminate()` (`useTranscriber.cancel`, que não mexe na
+  sessão — ver a nota da Tarefa 6 acima); a próxima `transcribe()` recria o worker e recarrega o
+  modelo. Proibido cancelamento por _flag_ verificada entre janelas — a inferência de uma janela em
+  curso não é interrompível de dentro.
+- **`BasicPitch.evaluateModel` (dentro do pacote `@spotify/basic-pitch`) não liberta os tensores que
+  cria a cada janela de 2 s.** Não é algo que se possa corrigir editando `node_modules`. Contornado
+  envolvendo cada chamada com `tf.engine().startScope()`/`endScope()` — os primitivos por baixo de
+  `tf.tidy()`, que funcionam através de `await`s (`tidy()` exige uma função síncrona, incompatível
+  com `evaluateModel`). Sem isto, memória cresce a cada transcrição dentro do mesmo worker
+  reutilizado. Qualquer chamada nova a `evaluateModel` (ou a outro método do `BasicPitch` que corra
+  o modelo) tem de ficar dentro do mesmo par `startScope`/`endScope`.
+- Limiares do modelo (`MODEL_THRESHOLDS` em `transcribe.worker.ts`: `ONSET_THRESHOLD`,
+  `FRAME_THRESHOLD`, `MIN_NOTE_LENGTH_MS`) vivem só ali, marcados como provisórios até afinação com
+  áudio real (Tarefa 13); proibido passar valores literais nas chamadas a `outputToNotesPoly`.
+- Backend de execução: tenta `wasm` (SIMD/threads negociados automaticamente por `setWasmPaths`, sem
+  deteção manual), cai para `webgl` só se o WASM falhar a inicializar. Nunca WebGPU nesta fase — só
+  reavaliar com medições documentadas (Tarefa 19). Cross-origin isolation (necessária para threads no
+  WASM) não está configurada — sem os cabeçalhos COOP/COEP no _hosting_, o backend usa
+  automaticamente a variante só-SIMD; isto é aceitável e não é um bug a corrigir aqui.
+- O protocolo de mensagens do worker vive em `src/workers/transcribe.worker.types.ts`, um ficheiro só
+  de tipos — mesmo padrão e mesma razão da Tarefa 6 (`audio.worker.types.ts`): evita que
+  `@/features/transcribe/useTranscriber` (lib `DOM`) arraste o corpo do worker (lib `WebWorker`,
+  TensorFlow.js incluído) para o programa errado.
+- A primeira transcrição de uma sessão mostra sempre a etapa `preparing-model` (distinta de
+  `transcribing`) — o utilizador tem de perceber que a espera de descarregar o modelo é só desta vez.
+  O progresso mostrado é real nas duas etapas (`preparing-model`: bytes do modelo descarregados via
+  `tf.loadGraphModel`'s `onProgress`; `transcribing`: fração de janelas de 2 s inferidas) — não há
+  barra indeterminada em `ProcessingView` desde esta tarefa.
 
 ## PWA e service worker (Tarefa 2)
 

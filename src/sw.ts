@@ -38,11 +38,24 @@ cleanupOutdatedCaches()
 // Esta rota só passa a ser exercitada a sério na Tarefa 7, quando existirem
 // ficheiros em `/models/`; fica pronta agora porque a Tarefa 7 depende desta
 // infraestrutura, não o contrário (ver Contexto desta tarefa).
+//
+// O próprio chunk do worker de transcrição (Tarefa 7) entra na mesma rota,
+// pela mesma razão: `transcribe.worker.ts` importa o TensorFlow.js inteiro
+// (~2 MB depois de compilado — TensorFlow.js sozinho, sem contar o modelo),
+// e isso ultrapassa o limite por omissão do Workbox para o precache manifest
+// (2 MiB), fazendo o build falhar. Mesmo que coubesse, precachá-lo com a
+// shell obrigaria a descarregar ~2 MB de TensorFlow.js na primeira visita,
+// mesmo para quem nunca chega a gravar nada — exatamente o que a rota do
+// modelo já evita para os pesos. `globIgnores` em `vite.config.ts` tira este
+// chunk do manifest; esta rota é o que o deixa em cache assim que a primeira
+// transcrição o pede.
 // ---------------------------------------------------------------------------
 export const MODEL_CACHE_NAME = 'pauta-model-v1'
 
+const TRANSCRIBE_WORKER_PATTERN = /\/assets\/transcribe\.worker-.*\.js$/
+
 registerRoute(
-  ({ url }) => url.pathname.startsWith('/models/'),
+  ({ url }) => url.pathname.startsWith('/models/') || TRANSCRIBE_WORKER_PATTERN.test(url.pathname),
   new StaleWhileRevalidate({
     cacheName: MODEL_CACHE_NAME,
     plugins: [
