@@ -1,4 +1,4 @@
-import type { MicrophoneErrorCode } from '@/features/capture'
+import type { FileErrorCode, MicrophoneErrorCode } from '@/features/capture'
 
 /**
  * Textos de erro — ver Tarefa 4, Âmbito técnico.
@@ -62,6 +62,48 @@ export const microphoneErrors: Record<MicrophoneErrorCode, ErrorMessage> = {
   },
 }
 
-export function isKnownErrorCode(code: string): code is MicrophoneErrorCode {
-  return code in microphoneErrors
+/**
+ * Erros da Tarefa 5 (importação de ficheiro), alinhados com a Tarefa 4,
+ * decisão 9 — ver Tarefa 5, decisão 5. `too-quiet` não é redefinido aqui: é o
+ * mesmo código e a mesma mensagem de `microphoneErrors`, reutilizado tal e
+ * qual — um ficheiro em silêncio é o mesmo problema que uma gravação em
+ * silêncio. `too-long` fica de fora deste catálogo de propósito: não é um
+ * erro, é uma oferta de truncagem tratada localmente em `IdleView`.
+ */
+export const fileErrors: Record<Exclude<FileErrorCode, 'too-quiet'>, ErrorMessage> = {
+  'file-too-large': {
+    title: 'Ficheiro demasiado grande',
+    body: 'Este ficheiro tem mais de 30 MB. Escolhe um ficheiro mais pequeno, ou grava diretamente pelo microfone.',
+    action: 'Tentar novamente',
+  },
+  'unsupported-format': {
+    title: 'Não foi possível abrir este ficheiro',
+    body: 'O formato não é suportado por este browser, ou o ficheiro está corrompido. Experimenta outro ficheiro, ou outro browser.',
+    action: 'Tentar novamente',
+  },
+  'decode-failed': {
+    title: 'Não foi possível ler o ficheiro',
+    body: 'Alguma coisa correu mal a processar este ficheiro. Tenta outra vez, ou escolhe outro ficheiro.',
+    action: 'Tentar novamente',
+  },
+  'no-audio-track': {
+    title: 'Sem áudio neste ficheiro',
+    body: 'Este ficheiro não tem uma faixa de áudio para transcrever. Escolhe outro ficheiro.',
+    action: 'Tentar novamente',
+  },
+}
+
+/** Junta os dois catálogos — ver a nota sobre `too-quiet` acima. Único sítio
+ *  que sabe que os dois mapas partilham um código; `isKnownErrorCode` e
+ *  `getErrorMessage` consomem só isto. */
+const allErrors: Record<string, ErrorMessage> = { ...microphoneErrors, ...fileErrors }
+
+export function isKnownErrorCode(code: string): code is MicrophoneErrorCode | FileErrorCode {
+  return code in allErrors
+}
+
+/** `ErrorView` usa isto em vez de indexar `microphoneErrors`/`fileErrors`
+ *  diretamente — evita que a view precise de saber que há dois catálogos. */
+export function getErrorMessage(code: string): ErrorMessage | null {
+  return allErrors[code] ?? null
 }

@@ -42,6 +42,21 @@ export const idle = {
     'A seguir vais ver o pedido de permissão do browser. O áudio fica só neste dispositivo — nunca é enviado para lado nenhum.',
   micExplainerConfirm: 'Continuar',
   micExplainerCancel: 'Agora não',
+
+  /** Enquanto `decodeAudioData` corre — Tarefa 5, decisão 2. */
+  decodingFile: 'A preparar o ficheiro…',
+
+  /**
+   * Oferta de truncagem — Tarefa 5, decisão 4. Não é um erro (fica fora de
+   * `@/strings/errors.ts`): o ficheiro é válido, só mais longo do que a app
+   * consegue transcrever de uma vez. A duração original mostra-se ao lado,
+   * formatada com `formatElapsed` — não faz parte deste texto estático.
+   */
+  truncateTitle: 'Ficheiro mais longo do que o limite',
+  truncateBody:
+    'Só é possível transcrever até 60 segundos de cada vez. Continuar só com o início do ficheiro?',
+  truncateConfirm: 'Usar os primeiros 60 segundos',
+  truncateCancel: 'Cancelar',
 } as const
 
 export const recording = {

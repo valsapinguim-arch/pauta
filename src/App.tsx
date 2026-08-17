@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Toast } from '@/components'
-import { useRecordingFlow } from '@/features/capture'
-import type { RecordingFlowApi } from '@/features/capture'
+import { useFilePicker, useRecordingFlow } from '@/features/capture'
+import type { FilePickerApi, RecordingFlowApi } from '@/features/capture'
 import { useAppUpdate, useInstallPrompt } from '@/features/pwa'
 import {
   ErrorView,
@@ -26,6 +26,7 @@ export function App() {
   const session = useSession()
   const { state } = session
   const recording = useRecordingFlow(session)
+  const filePicker = useFilePicker(session)
 
   const { canInstall, promptInstall, isIosManualInstall } = useInstallPrompt(state.status)
   const { showUpdatePrompt, offlineReady, dismissOfflineReady, updateNow } = useAppUpdate(
@@ -41,7 +42,7 @@ export function App() {
         <p className={styles.tagline}>{app.tagline}</p>
       </header>
 
-      <div className={styles.stage}>{renderStage(state, session, recording)}</div>
+      <div className={styles.stage}>{renderStage(state, session, recording, filePicker)}</div>
 
       <Toast
         open={(canInstall || isIosManualInstall) && !installDismissed}
@@ -80,15 +81,31 @@ export function App() {
  * estado tem exatamente uma view; nunca duas ao mesmo tempo, nunca uma view a
  * decidir sozinha o que mostrar a partir de flags de outro estado.
  */
-function renderStage(state: SessionState, session: SessionApi, recording: RecordingFlowApi) {
+function renderStage(
+  state: SessionState,
+  session: SessionApi,
+  recording: RecordingFlowApi,
+  filePicker: FilePickerApi,
+) {
   switch (state.status) {
     case 'idle':
-      // TODO Tarefa 5: onPickFile (importar ficheiro).
       return (
         <IdleView
           onStartRecording={recording.requestStart}
           needsPermissionExplainer={recording.needsPermissionExplainer}
           onConfirmPermissionExplainer={recording.confirmPermissionExplainer}
+          onPickFile={filePicker.pickFile}
+          fileInputRef={filePicker.fileInputRef}
+          onFileInputChange={filePicker.handleFileInputChange}
+          onFileDrop={filePicker.handleDrop}
+          decodingFile={filePicker.decoding}
+          pendingTruncation={
+            filePicker.pendingTruncation && {
+              originalDurationMs: filePicker.pendingTruncation.originalDurationMs,
+              onConfirm: filePicker.pendingTruncation.confirm,
+              onCancel: filePicker.pendingTruncation.cancel,
+            }
+          }
         />
       )
 

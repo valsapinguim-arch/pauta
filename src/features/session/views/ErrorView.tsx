@@ -1,5 +1,5 @@
 import { Alert, Button } from '@/components'
-import { genericError, genericRestart, isKnownErrorCode, microphoneErrors } from '@/strings'
+import { genericError, genericRestart, getErrorMessage } from '@/strings'
 import styles from './ErrorView.module.css'
 
 export interface ErrorViewProps {
@@ -13,14 +13,15 @@ export interface ErrorViewProps {
 }
 
 /**
- * Erros de captura (Tarefa 4, decisão 9) mostram a sua mensagem própria —
- * `microphoneErrors[code]`. Um código desconhecido (de uma tarefa futura que
- * ainda não tenha entrado no mapa, ou de antes de existir catálogo completo,
- * Tarefa 21) cai no genérico de `@/strings`; mostrar `code` cru seria expor
- * um detalhe técnico.
+ * Erros de captura (Tarefa 4, decisão 9) e de importação (Tarefa 5, decisão
+ * 5) mostram a sua mensagem própria — `getErrorMessage(code)`. Um código
+ * desconhecido (de uma tarefa futura que ainda não tenha entrado no
+ * catálogo, ou de antes de existir catálogo completo, Tarefa 21) cai no
+ * genérico de `@/strings`; mostrar `code` cru seria expor um detalhe
+ * técnico.
  */
 export function ErrorView({ code, recoverable, onRestart }: ErrorViewProps) {
-  const known = isKnownErrorCode(code) ? microphoneErrors[code] : null
+  const known = getErrorMessage(code)
   const message = known ?? genericError
   const actionLabel = known ? known.action : recoverable ? genericError.action : genericRestart
 

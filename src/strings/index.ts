@@ -1,8 +1,10 @@
 export { app, idle, processing, processingStage, recording, result } from './app'
 export {
   crash,
+  fileErrors,
   generic as genericError,
   genericRestart,
+  getErrorMessage,
   isKnownErrorCode,
   microphoneErrors,
 } from './errors'

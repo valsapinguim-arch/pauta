@@ -36,8 +36,9 @@ export const WARNING_THRESHOLD_MS = 50_000
 /** RMS abaixo disto conta como "não se ouviu nada" (decisão 9). Provisório —
  *  por afinar com áudio real, tal como `MODEL_THRESHOLDS` (Tarefa 7) e
  *  `NOTE_CLEANUP` (Tarefa 8); mesma razão: só se sabe o valor certo depois de
- *  ver o resultado em pautas reais. */
-const TOO_QUIET_RMS_THRESHOLD = 0.01
+ *  ver o resultado em pautas reais. Exportada porque a Tarefa 5 reutiliza o
+ *  mesmo limiar tal e qual, para o `too-quiet` de ficheiro importado. */
+export const TOO_QUIET_RMS_THRESHOLD = 0.01
 
 /** Ver Tarefa 4, decisão 4 — nunca ativar sem medição documentada. */
 const AUDIO_CONSTRAINTS: MediaTrackConstraints = {

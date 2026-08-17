@@ -144,6 +144,33 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   bloqueia isto com erro (`react-hooks/refs`), mesmo para o padrão comum de "manter uma ref sempre
   atualizada com as props mais recentes".
 
+## Importação de ficheiro (Tarefa 5)
+
+- A descodificação de áudio usa exclusivamente `AudioContext.decodeAudioData`; proibido introduzir
+  `ffmpeg.wasm` ou qualquer descodificador em JavaScript — o custo de bundle não é justificável
+  neste projeto.
+- Formatos são validados por tentativa de descodificação, nunca por extensão ou MIME type; a
+  extensão só serve para o filtro do seletor de ficheiros (`accept="audio/*"`).
+- Ficheiros de vídeo não são aceites como entrada, mesmo que o browser os descodifique — não são
+  oferecidos no seletor (`accept="audio/*"` já os exclui); não acrescentar deteção extra por
+  extensão ou MIME para os bloquear no _drop_, isso contradiria a validação por tentativa acima.
+- As Tarefas 4 e 5 convergem no mesmo formato de saída (`Float32Array` + `sampleRate`); proibido
+  que o resto do pipeline saiba se o áudio veio do microfone ou de um ficheiro. Um `AudioBuffer`
+  multicanal é reduzido a um só canal com `downmixToMono` (`@/lib/audio/downmixToMono.ts`) antes de
+  sair de `useFilePicker` — é o que garante a mesma forma de saída de um ficheiro estéreo.
+- O `File` e o `ArrayBuffer` originais são libertados imediatamente após a descodificação (a
+  variável sai de âmbito assim que `processFile` termina); apenas o PCM e o nome do ficheiro
+  sobrevivem, guardados em `AudioSource` (`session.startProcessing({ kind: 'file', name })`).
+- Áudio que exceda a duração máxima (`MAX_RECORDING_MS`, partilhado com a Tarefa 4) é truncado com
+  confirmação do utilizador (`pendingTruncation` em `useFilePicker`, mostrado como _sheet_ em
+  `IdleView`), nunca rejeitado silenciosamente nem processado por inteiro.
+- Erros de importação (`FileErrorCode` em `useFilePicker.ts`) partilham o catálogo da Tarefa 4
+  (`getErrorMessage` em `@/strings/errors.ts`); `too-quiet` é literalmente o mesmo código nos dois
+  caminhos de entrada — não redefinir a sua mensagem em `fileErrors`.
+- A zona de _drop_ em `IdleView` só aparece com `@media (pointer: fine)` — deteção por CSS, nunca
+  por JavaScript (`navigator.maxTouchPoints` ou equivalente); o botão "Usar um ficheiro de áudio" é
+  o único caminho garantido em todos os dispositivos.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
