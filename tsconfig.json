@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "types": ["node"],
+
+    /* Estrito — ver prompts/tasks/00-preparacao-do-projeto.md (decisão 3).
+       Este projeto manipula estruturas musicais onde um erro não estoura:
+       produz uma pauta errada. Tipos estritos são a primeira defesa. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    /* Não emitimos daqui: o build é do Vite (Tarefa 1). */
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+
+    /* Alias @/ — a regra no-restricted-imports do ESLint proíbe `../`.
+       Sem `baseUrl` (removido no TS 7): os paths resolvem-se relativamente
+       a este ficheiro, o que já é o comportamento pretendido. */
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "*.config.ts", "eslint.config.js"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

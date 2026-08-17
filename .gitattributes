@@ -1,0 +1,16 @@
+# O Prettier está configurado com `endOfLine: lf` (.prettierrc). Sem isto, o git
+# em Windows faria checkout em CRLF e `pnpm format` falhava num clone novo.
+* text=auto eol=lf
+
+# Binários — nunca normalizar.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.wav binary
+*.mp3 binary
+*.wasm binary
+
+# Ficheiros gerados: não contam para estatísticas nem para revisão de diffs.
+pnpm-lock.yaml linguist-generated=true -diff
