@@ -1,0 +1,83 @@
+/**
+ * Tokens de estilo. Único sítio onde vivem valores literais de cor, espaçamento,
+ * tipografia, radius, sombra e z-index — ver AGENTS.md.
+ *
+ * A Tarefa 3 completa a paleta ao construir os componentes; aqui está o
+ * conjunto mínimo para o ecrã inicial. O modo escuro segue a preferência do
+ * sistema, sem alternador (Tarefa 3, decisão 8).
+ */
+
+:root {
+  /* --- Cor: tema claro ------------------------------------------------- */
+  --color-bg: #fbfbfa;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f2f2f0;
+  --color-border: #dededa;
+  --color-text: #1a1a18;
+  --color-text-muted: #5c5c56;
+  --color-accent: #1c5d4a;
+  --color-accent-text: #ffffff;
+  --color-accent-hover: #174d3d;
+  --color-danger: #a12a1f;
+  --color-danger-bg: #fdeeec;
+  --color-focus: #1c5d4a;
+
+  /* --- Espaçamento ----------------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* --- Tipografia ------------------------------------------------------ */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --line-height-tight: 1.2;
+  --line-height-base: 1.55;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  /* --- Forma ----------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.1);
+
+  /* --- Camadas --------------------------------------------------------- */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-overlay: 100;
+  --z-toast: 200;
+
+  /* Alvo mínimo de toque. Regra da Tarefa 18, decisão 9 — fica como token
+     para não ser reinventado em cada componente. */
+  --touch-target-min: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #16161a;
+    --color-surface: #1f1f24;
+    --color-surface-sunken: #121215;
+    --color-border: #33333a;
+    --color-text: #f0f0ee;
+    --color-text-muted: #a3a39c;
+    --color-accent: #5fbfa3;
+    --color-accent-text: #10221d;
+    --color-accent-hover: #78cdb3;
+    --color-danger: #f0938a;
+    --color-danger-bg: #2c1a18;
+    --color-focus: #5fbfa3;
+  }
+}

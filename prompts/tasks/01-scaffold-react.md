@@ -98,3 +98,11 @@ src/
 - Depende da Tarefa 0.
 - Os tipos criados aqui são propositadamente provisórios na sua riqueza — o objetivo é fixar os nomes e as fronteiras do pipeline. As Tarefas 8 a 12 vão refiná-los; o que não deve acontecer é cada tarefa inventar o seu próprio tipo de nota.
 - Não instalar ainda TensorFlow.js nem VexFlow — só entram nas Tarefas 7 e 13. Instalá-los agora inflaciona o bundle antes de haver forma de medir o impacto (Tarefa 22).
+
+### Registado durante a implementação
+
+- **React 19.** Sem decisão à parte — é a versão atual e não há razão para fixar uma anterior.
+- **A pureza de `@/lib` (decisão da Tarefa 0/`AGENTS.md`) passou a ser imposta pelo ESLint**, não só escrita em prosa: um bloco dedicado em `eslint.config.js` (`files: ['src/lib/**/*.ts']`) proíbe importar React, `window`, `document`, `navigator`, `fetch`, `AudioContext`/`OfflineAudioContext`, IndexedDB e qualquer coisa de `@/features`, `@/components` ou `@/workers`. Verificado com um ficheiro de propósito que viola as sete regras — todas apanhadas.
+- **Linha de base do bundle (build de produção, sem VexFlow nem modelo, que só entram nas Tarefas 7 e 13):** 195 KB / 61 KB gzip. Serve de referência para o orçamento que a Tarefa 19 vai fixar com medições reais.
+- **`sessionReducer`: `fail` e `reset` tratados fora do `switch (state.status)`.** São as duas transições que valem em qualquer estado (uma falha pode ocorrer a meio de qualquer etapa; resetar é a saída de emergência universal) — misturá-las dentro de cada bloco de estado duplicaria os mesmos dois casos cinco vezes.
+- O teste do reducer cobre a tabela de verdade completa (5 estados × 8 tipos de ação), incluindo a garantia de que uma transição inválida devolve o **mesmo objeto** (`toBe`, não `toEqual`) — para apanhar uma cópia acidental que faria o React re-renderizar sem motivo.
