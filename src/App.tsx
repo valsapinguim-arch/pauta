@@ -1,5 +1,6 @@
+import { useAppUpdate, useInstallPrompt } from '@/features/pwa'
 import { useSession } from '@/features/session'
-import { app, idle } from '@/strings'
+import { app, idle, install, update } from '@/strings'
 import styles from './App.module.css'
 
 /**
@@ -16,6 +17,14 @@ import styles from './App.module.css'
  */
 export function App() {
   const { state } = useSession()
+
+  /* Os dois hooks recebem o estado da sessão porque o convite de instalação e
+     o aviso de atualização nunca podem aparecer a meio de gravar ou de
+     processar — ver Tarefa 2, decisão 5 e Âmbito técnico. */
+  const { canInstall, promptInstall, isIosManualInstall } = useInstallPrompt(state.status)
+  const { showUpdatePrompt, offlineReady, dismissOfflineReady, updateNow } = useAppUpdate(
+    state.status,
+  )
 
   return (
     <main className={styles.main}>
@@ -43,6 +52,41 @@ export function App() {
 
       {/* Não remover nem esconder — ver Tarefa 3, decisão 6. */}
       <p className={styles.limitation}>{idle.limitationNotice}</p>
+
+      {/* TODO Tarefa 3: substituir por Toast/Alert do inventário fechado de
+          componentes — isto é o mínimo funcional para verificar o fluxo. */}
+      {canInstall && (
+        <div className={styles.banner} role="status">
+          <p>{install.message}</p>
+          <button type="button" className={styles.secondary} onClick={() => void promptInstall()}>
+            {install.action}
+          </button>
+        </div>
+      )}
+
+      {!canInstall && isIosManualInstall && (
+        <div className={styles.banner} role="status">
+          <p>{install.iosMessage}</p>
+        </div>
+      )}
+
+      {showUpdatePrompt && (
+        <div className={styles.banner} role="status">
+          <p>{update.message}</p>
+          <button type="button" className={styles.secondary} onClick={updateNow}>
+            {update.action}
+          </button>
+        </div>
+      )}
+
+      {offlineReady && (
+        <div className={styles.banner} role="status">
+          <p>{update.offlineReadyMessage}</p>
+          <button type="button" className={styles.secondary} onClick={dismissOfflineReady}>
+            {update.dismiss}
+          </button>
+        </div>
+      )}
 
       <p className={styles.debug}>estado: {state.status}</p>
     </main>

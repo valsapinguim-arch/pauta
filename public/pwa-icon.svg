@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    Ícone fonte da PWA — ver Tarefa 2, decisão 7.
+
+    Fundo sólido de bordo a bordo (SEM cantos arredondados aqui de propósito):
+    para um ícone maskable, o sistema operativo é quem aplica a forma (círculo,
+    squircle, o que for); arredondar na origem só desperdiçaria zona segura.
+
+    Todo o conteúdo (as três linhas de pauta + a nota) fica dentro de uma caixa
+    de 560×560 centrada (232–792 em ambos os eixos), bem dentro do círculo de
+    zona segura de um maskable (raio ~410 em torno do centro 512,512).
+  -->
+  <rect width="1024" height="1024" fill="#1c5d4a" />
+
+  <g stroke="#f7f4ee" stroke-width="30" stroke-linecap="round">
+    <line x1="248" y1="340" x2="776" y2="340" />
+    <line x1="248" y1="512" x2="776" y2="512" />
+    <line x1="248" y1="684" x2="776" y2="684" />
+  </g>
+
+  <g fill="#f7f4ee">
+    <line
+      x1="676"
+      y1="300"
+      x2="676"
+      y2="620"
+      stroke="#f7f4ee"
+      stroke-width="34"
+      stroke-linecap="round"
+    />
+    <ellipse cx="636" cy="650" rx="86" ry="64" transform="rotate(-16 636 650)" />
+  </g>
+</svg>

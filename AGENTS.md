@@ -25,12 +25,14 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
 
 - Aplicação única (não é mono-repo):
   ```
-  /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library)
+  /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa)
   /src/components/ → interface mínima partilhada
   /src/workers/    → Web Workers
   /src/lib/        → lógica pura (sem DOM, sem I/O)
   /src/styles/     → tokens
+  /src/sw.ts       → service worker (injectManifest — Tarefa 2)
   /public/models/  → modelo Basic Pitch empacotado
+  /public/*.png, /public/favicon.ico, /public/*.svg → ícones PWA (gerados, Tarefa 2)
   /docs/           → arquitetura
   /prompts/        → plano de desenvolvimento
   ```
@@ -59,6 +61,12 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   e verificar `pnpm lint` na mesma alteração.
 - `tsconfig.json` não usa `baseUrl` (removido no TS 7); os `paths` resolvem-se relativamente ao
   próprio ficheiro. Não reintroduzir `baseUrl`.
+- Qualquer pacote importado diretamente em código (`import x from 'pacote'`) tem de estar listado
+  como dependência própria no `package.json` — nunca confiar em hoisting transitivo. O pnpm é
+  estrito de propósito e só liga ao `node_modules` de topo os pacotes listados; um import direto de
+  algo que só existe como transitivo de outra dependência (ex.: `workbox-core`, transitivo de
+  `workbox-precaching` até a Tarefa 2 o listar à parte) resolve-se hoje por acaso da árvore de
+  dependências e pode partir numa atualização não relacionada.
 
 ## Estado e navegação (Tarefa 1)
 
@@ -87,6 +95,36 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   desenhar ou para exportar.
 - Trabalho de descodificação ou inferência NUNCA corre na thread principal. Se bloqueia a UI, vai
   para um worker.
+
+## PWA e service worker (Tarefa 2)
+
+- `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
+  para `generateSW` — a política de cache do modelo e o fluxo de atualização dependem de controlo
+  explícito que `generateSW` não expõe.
+- O modelo de ML (Tarefa 7) tem cache própria (`pauta-model-v1`, `stale-while-revalidate`), sempre
+  FORA do precache manifest da shell; uma atualização da app nunca deve obrigar a descarregar o
+  modelo outra vez.
+- Proibido `self.skipWaiting()` automático em `install`. O service worker só sai de `waiting` ao
+  receber `{ type: 'SKIP_WAITING' }` da app — e a app só envia essa mensagem depois de o utilizador
+  clicar em "Atualizar" (nunca sozinha, nunca em resposta a um temporizador).
+- O aviso de atualização (`useAppUpdate`) e o convite de instalação (`useInstallPrompt`) nunca
+  aparecem com a sessão em `recording` ou `processing`, nem o convite de instalação na primeira
+  visita. Ambos os hooks recebem `SessionStatus` e derivam a visibilidade a partir dele — não
+  reimplementar esta condição noutro sítio.
+- Não adicionar regras de cache de runtime (`registerRoute`) para domínios externos, nem carregar
+  fontes, scripts ou imagens de CDN no service worker — todos os assets são locais.
+- Não registar `notificationclick`, `push` ou background sync no service worker; a app não tem
+  servidor e não usa estas capacidades.
+- `src/sw.ts` e `src/workers/**/*.ts` usam `tsconfig.worker.json` (lib `WebWorker`, não `DOM`) e
+  ficam excluídos do `tsconfig.json` principal — `pnpm typecheck` corre os dois. Não os remover de
+  `exclude` no tsconfig principal nem apagar `tsconfig.worker.json`.
+- Os ícones em `public/` (`pwa-*.png`, `maskable-icon-*.png`, `apple-touch-icon-*.png`,
+  `favicon.ico`) são gerados por `pnpm generate-pwa-assets` a partir de `public/pwa-icon.svg`
+  (`pwa-assets.config.ts`) — nunca editados à mão nem gerados por outra ferramenta. Alterar o ícone
+  é sempre: editar o SVG → correr o script → commitar os PNGs resultantes.
+- Testar sempre com `pnpm preview` (nunca `pnpm dev`) para qualquer coisa relacionada com o service
+  worker ou instalação — em `vite dev` o service worker está desativado de propósito
+  (`devOptions.enabled: false`).
 
 ## Interface
 
