@@ -60,12 +60,26 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
 - `tsconfig.json` não usa `baseUrl` (removido no TS 7); os `paths` resolvem-se relativamente ao
   próprio ficheiro. Não reintroduzir `baseUrl`.
 
+## Estado e navegação (Tarefa 1)
+
+- Não introduzir router, nem biblioteca de estado global (Redux, Zustand, TanStack Query), sem
+  justificação escrita na tarefa que o faz — a app não tem servidor para sincronizar nem URLs
+  partilháveis. Estado de sessão vive no `sessionReducer`; a biblioteca persistida (Tarefa 16) é
+  acedida pelo seu próprio módulo.
+- Cada feature em `@/features` expõe a sua API pública por `index.ts`; outras features (e `App.tsx`)
+  importam do `index.ts`, nunca de um ficheiro interno de outra feature.
+- Os tipos do pipeline (`NoteEvent`, `TempoMap`, `QuantizedNote`, `KeyAnalysis`, `ScoreDocument` e os
+  restantes em `@/lib/types.ts`) vivem só ali; proibido redefinir uma versão local numa feature.
+
 ## Pipeline de transcrição
 
 - O pipeline é uma cadeia de funções puras em `/src/lib`:
   `NoteEvent[] → TempoMap → QuantizedNote[] → KeyAnalysis → ScoreDocument → MusicXML | MIDI | VexFlow`.
   Nenhuma função em `/src/lib` acede ao DOM, ao Web Audio, ao IndexedDB, a `fetch` ou a
-  `window`/`navigator` — se precisa disso, não pertence a `/src/lib`.
+  `window`/`navigator` — se precisa disso, não pertence a `/src/lib`. **Isto é imposto pelo ESLint**
+  (bloco `files: ['src/lib/**/*.ts']` em `eslint.config.js`), não só documentado: importar React,
+  `window`, `document`, `navigator`, `fetch`, `AudioContext` ou uma feature a partir de `@/lib` falha
+  o lint com uma mensagem que explica porquê.
 - Áudio entregue ao worker de transcrição é SEMPRE mono a 22050 Hz. O worker valida isto e falha
   explicitamente se não for o caso; proibido assumir que o chamador converteu.
 - `ScoreDocument` é a única representação da partitura na aplicação. Renderizador, reprodutor,
