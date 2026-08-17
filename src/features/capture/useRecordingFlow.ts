@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { SessionApi } from '@/features/session'
+import type { CapturedAudio } from '@/lib/types'
 import { useMicrophone } from './useMicrophone'
 
 const MIC_EXPLAINED_KEY = 'pauta:mic-explained'
@@ -28,8 +29,18 @@ export interface RecordingFlowApi {
  * máquina de estados da sessão (Tarefa 1). Mantém as duas coisas separadas de
  * propósito: `useMicrophone` só fala a linguagem do Web Audio, isto é que
  * traduz os seus eventos em transições concretas.
+ *
+ * `onAudioReady` (Tarefa 6) entrega o PCM capturado a quem o pré-processa —
+ * chamado imediatamente a seguir a `session.stopRecording()`, nunca antes:
+ * a sessão já tem de estar em `processing` quando o worker começa a reportar
+ * progresso. Passado por parâmetro (em vez de o PCM viver no estado da
+ * sessão) de propósito: o mecanismo `?state=` (Tarefa 3) força `processing`
+ * sem nunca passar por aqui, e não pode disparar um worker de verdade.
  */
-export function useRecordingFlow(session: SessionApi): RecordingFlowApi {
+export function useRecordingFlow(
+  session: SessionApi,
+  onAudioReady: (audio: CapturedAudio) => void,
+): RecordingFlowApi {
   const [needsPermissionExplainer, setNeedsPermissionExplainer] = useState(
     () => window.localStorage.getItem(MIC_EXPLAINED_KEY) !== '1',
   )
@@ -39,12 +50,8 @@ export function useRecordingFlow(session: SessionApi): RecordingFlowApi {
       session.updateLevel(level, elapsedMs)
     },
     onCaptured: (audio) => {
-      // TODO Tarefa 6: entregar { pcm, sampleRate } ao pré-processamento —
-      // por agora só se confirma que a captura funciona de ponta a ponta.
-      // `warn` (não `info`) porque é o único nível de diagnóstico permitido
-      // fora dos ficheiros de erro (ver eslint.config.js, regra no-console).
-      console.warn(`[pauta] áudio capturado: ${audio.pcm.length} amostras a ${audio.sampleRate} Hz`)
       session.stopRecording()
+      onAudioReady(audio)
     },
     onError: (code) => {
       session.fail(code, true)

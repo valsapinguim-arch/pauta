@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import type { CapturedAudio } from '@/lib/types'
 /* `?worker&url`: dá a URL do ficheiro já compilado pelo Vite (TypeScript
    transpilado, imports de @/lib resolvidos), sem o instanciar como Worker —
    é exatamente o que `audioWorklet.addModule(url)` precisa. `new URL(...,
@@ -9,10 +10,7 @@ import recorderWorkletUrl from '@/workers/recorder.worklet.ts?worker&url'
 export type MicrophoneErrorCode =
   'permission-denied' | 'no-microphone' | 'microphone-busy' | 'not-supported' | 'too-quiet'
 
-export interface CapturedAudio {
-  pcm: Float32Array
-  sampleRate: number
-}
+export type { CapturedAudio }
 
 export interface UseMicrophoneOptions {
   onLevel: (level: number, elapsedMs: number) => void

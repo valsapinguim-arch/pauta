@@ -171,6 +171,57 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   por JavaScript (`navigator.maxTouchPoints` ou equivalente); o botão "Usar um ficheiro de áudio" é
   o único caminho garantido em todos os dispositivos.
 
+## Pré-processamento de áudio (Tarefa 6)
+
+- O pré-processamento corre sempre em `src/workers/audio.worker.ts`; proibido reamostrar ou
+  filtrar na thread principal.
+- A ordem das etapas é fixa: `mono → passa-baixo → reamostrar → cortar silêncio → normalizar`
+  (`toMono` → `lowPassFilter` → `resample` → `trimSilence` → `normalizePeak`, todas em
+  `@/lib/audio/`). Trocar a ordem altera o resultado e não é uma otimização — não reordenar.
+- Reduzir a taxa de amostragem sem aplicar antes um filtro passa-baixo abaixo da nova frequência
+  de Nyquist é proibido: produz notas fantasma na pauta. O cutoff (`LOW_PASS_CUTOFF_HZ`, ~10.5 kHz)
+  é fixo, independente da taxa de entrada.
+- Proibido reamostrar por interpolação linear ou via `OfflineAudioContext`; a reamostragem é a
+  implementação de Lanczos (sinc janelado) em `@/lib/audio/resample.ts`, porque o resultado tem de
+  ser determinístico e testável em Node, sem áudio real.
+- Conversão para mono (`@/lib/audio/toMono.ts`) é sempre por média dos canais; proibido usar apenas
+  o primeiro canal. Partilhada com a Tarefa 5 (importação de ficheiro), que já precisa dela para um
+  ficheiro estéreo caber no `Float32Array` único que o resto do pipeline espera.
+- A normalização (`@/lib/audio/normalizePeak.ts`) é um ganho de pico único e uniforme; proibido
+  compressão, limitação ou _noise gating_ — alteram as relações de amplitude entre notas, que o
+  pipeline usa a jusante.
+- Silêncio só é cortado nas pontas (`@/lib/audio/trimSilence.ts`), nunca no interior do sinal —
+  silêncio interior são pausas musicais. O deslocamento cortado no início é sempre devolvido como
+  `trimOffsetSamples` e tem de ser propagado até à reprodução (Tarefa 14) e ao alinhamento rítmico
+  (Tarefa 9).
+- `assertModelInput` (`@/lib/audio/assertModelInput.ts`) corre sempre antes de o worker devolver o
+  resultado; proibido desativá-la por performance. `MODEL_SAMPLE_RATE` (22050 Hz) só é definido
+  nesse ficheiro — quem precisar da taxa do modelo importa-a de lá, não redefine o número.
+- Buffers são transferidos (`postMessage(msg, [buffer])`) e não clonados, nos dois sentidos; depois
+  de enviar um buffer, o emissor nunca volta a lê-lo (`useFilePicker`/`usePreprocessAudio` não leem
+  `audio.pcm` depois de o passar ao worker).
+- O protocolo de mensagens do worker vive em `src/workers/audio.worker.types.ts`, um ficheiro só de
+  tipos — nunca em `audio.worker.ts`. Motivo: `audio.worker.ts` usa `self.postMessage`/`onmessage`
+  (lib `WebWorker`, `tsconfig.worker.json`) e é excluído do `tsconfig.json` principal; se o hook em
+  `@/features/transcribe` (compilado sob o `tsconfig.json` principal, lib `DOM`) importasse tipos
+  diretamente de `audio.worker.ts`, o TypeScript seguiria o import e tentaria verificar esse
+  ficheiro sob a configuração errada. Um ficheiro de tipos puro, sem globals de nenhum dos dois
+  ambientes, evita o conflito — qualquer tipo novo do protocolo entra aí, nunca em `audio.worker.ts`.
+- O worker de áudio é descartável — criado por transcrição, terminado no fim, no erro ou ao
+  cancelar (`usePreprocessAudio`); nunca reutilizado entre transcrições. É diferente do worker de
+  transcrição (Tarefa 7), que carrega um modelo caro e é mantido vivo — não confundir os dois
+  ciclos de vida.
+- Cancelar durante `processing` chama `worker.terminate()` (nunca uma _flag_ verificada a meio: a
+  convolução em curso não é interrompível de dentro) e só depois `session.cancel()`
+  (`usePreprocessAudio.cancel`, ligado a `ProcessingView.onCancel` em `App.tsx`).
+- O PCM capturado (Tarefas 4/5) NUNCA vive no estado da sessão (`SessionState`) — é entregue
+  diretamente de `useRecordingFlow`/`useFilePicker` a `usePreprocessAudio.run()` por chamada direta,
+  não por um campo em `session.state`. Motivo: o mecanismo `?state=processing` (Tarefa 3) força esse
+  estado sem nunca passar por uma captura real, e um worker a arrancar sozinho a partir de um estado
+  de desenvolvimento forjado (com PCM vazio) seria um efeito secundário invisível e errado desse
+  mecanismo. Não reintroduzir `audio`/`pcm` em `SessionState`/`SessionAction` para "simplificar" a
+  passagem de dados — é uma armadilha já considerada e rejeitada.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
