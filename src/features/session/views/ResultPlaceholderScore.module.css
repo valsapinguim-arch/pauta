@@ -1,0 +1,13 @@
+.svg {
+  width: 100%;
+  height: auto;
+}
+
+.system line {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.note {
+  fill: var(--color-text-muted);
+}

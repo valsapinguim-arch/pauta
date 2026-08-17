@@ -25,11 +25,15 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
 
 - Aplicação única (não é mono-repo):
   ```
+  /src/features/session/views/ → as 5 views do ecrã principal (Tarefa 3)
   /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa)
-  /src/components/ → interface mínima partilhada
+  /src/components/ → inventário fechado de 7 (Button, IconButton, Sheet, Progress, Alert, Spinner,
+                     Toast) + icons/ e cx.ts (suporte, fora do inventário)
   /src/workers/    → Web Workers
   /src/lib/        → lógica pura (sem DOM, sem I/O)
   /src/styles/     → tokens
+  /src/strings/    → textos pt-PT
+  /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
   /src/sw.ts       → service worker (injectManifest — Tarefa 2)
   /public/models/  → modelo Basic Pitch empacotado
   /public/*.png, /public/favicon.ico, /public/*.svg → ícones PWA (gerados, Tarefa 2)
@@ -126,17 +130,68 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   worker ou instalação — em `vite dev` o service worker está desativado de propósito
   (`devOptions.enabled: false`).
 
-## Interface
+## Interface (Tarefa 3)
 
 - O interface é deliberadamente mínimo. Antes de adicionar um componente, um ecrã, um menu ou uma
   opção de configuração, verificar se o fluxo principal (gravar → ver pauta → exportar) fica
   mesmo melhor com ele. A resposta por omissão é não.
+- Inventário de componentes fechado: `Button`, `IconButton`, `Sheet`, `Progress`, `Alert`,
+  `Spinner`, `Toast` (`src/components/`, cada um com `index.ts` + `.types.ts` + `.module.css` +
+  `.test.tsx`). Acrescentar um oitavo exige justificação escrita na tarefa que o introduz — a
+  Tarefa 16 provavelmente precisa de uma `List`, a Tarefa 17 de um controlo de seleção, e é lá que
+  se decide, não antes. `icons/` e `cx.ts` não contam para este inventário: são suporte (glifos e um
+  utilitário de classes), não primitivas de interação com opinião de design própria.
+- Não introduzir bibliotecas de componentes (MUI, Chakra, shadcn) nem frameworks de CSS (Tailwind,
+  styled-components) — CSS Modules + tokens é a única abordagem de estilo. Radix (pacote unificado
+  `radix-ui`) só entra onde há acessibilidade não trivial a resolver (hoje: só `Toast`); um `<button>`
+  ou um `<div>` sem gestão de foco/anúncio próprio não precisa de primitiva nenhuma por cima.
 - Existe um ecrã principal com estados mutuamente exclusivos
   (`idle`, `recording`, `processing`, `result`, `error`) geridos por uma máquina de estados
-  explícita; proibido representar este fluxo com múltiplos booleanos independentes.
-- Cor, espaçamento, tipografia e radius vêm sempre dos tokens em `/src/styles/tokens.css` via
-  `var(--token)`; proibido valor literal (ex.: `#ffffff`, `16px`) dentro de um componente.
-- Todo o texto visível ao utilizador é pt-PT e vive no módulo de strings, nunca inline no JSX.
+  explícita; proibido representar este fluxo com múltiplos booleanos independentes. Cada estado tem
+  exatamente uma view em `src/features/session/views/` (`IdleView`, `RecordingView`,
+  `ProcessingView`, `ResultView`, `ErrorView`), escolhida por `switch` exaustivo em `App.tsx`
+  (`assertNever` no `default` — TypeScript falha a compilar se um estado novo ficar por tratar).
+  Proibido renderizar duas views ao mesmo tempo ou condicionar parte de uma view a dados de outro
+  estado.
+- Cor, espaçamento, tipografia, radius e sombra vêm sempre dos tokens em `/src/styles/tokens.css`
+  via `var(--token)`; proibido valor literal (ex.: `#ffffff`, `16px`) dentro de um componente ou
+  view. Nenhuma página ou feature estiliza elementos HTML base (`<button>`, `<input>`) diretamente —
+  usa sempre o componente correspondente, importado de `@/components`.
+- Todo o texto visível ao utilizador é pt-PT e vive em `@/strings`, nunca inline no JSX.
+- O aviso sobre a limitação a instrumento único (`idle.limitationNotice`) é mostrado em `IdleView`,
+  antes de gravar. Proibido removê-lo, escondê-lo atrás de um ecrã de ajuda, ou mostrá-lo só depois
+  do resultado.
+- O botão de gravar (`IdleView`, `Button` com `shape="circle" size="lg"`) é o único elemento
+  visualmente primário do ecrã principal; qualquer ação nova entra como secundária
+  (`variant="secondary"` ou `IconButton`).
+- Não adicionar alternador de tema — o modo escuro segue `prefers-color-scheme`, sem exceção.
+- Sem animações de transição entre estados/views (Tarefa 3, decisão 9) — só _feedback_ imediato
+  (`Spinner`, `Progress`, nível de áudio). A Tarefa 18 revê isto por inteiro, incluindo
+  `prefers-reduced-motion`; não antecipar.
+- `?state=idle|recording|processing|result|error` (mais `&stage=` em `processing` e
+  `&recoverable=false` em `error`) força o estado inicial da sessão — só em
+  `import.meta.env.DEV` (`getDevStateOverride`, `src/features/session/devStateOverride.ts`), nunca
+  entra no bundle de produção. É o mecanismo para rever qualquer view sem pipeline nenhum a
+  funcionar; não construir um segundo.
+- Props de componentes com `exactOptionalPropertyTypes: true`: quando o valor passado pode ser
+  `condição ? x : undefined` (em vez de a prop ser simplesmente omitida), o tipo da prop precisa do
+  `| undefined` explícito (ex.: `value?: number | undefined`) — sem isto o `tsc` rejeita. Já
+  acontece em `ProgressProps` e `ToastProps`; ao criar uma prop opcional nova que pode receber
+  `undefined` de propósito (não só por omissão), aplicar o mesmo padrão desde o início.
+
+## Testes de componentes (Tarefa 3)
+
+- `@testing-library/react` + `jsdom`, ambiente por ficheiro via `// @vitest-environment jsdom` no
+  topo (nunca `environment: 'jsdom'` global no `vitest.config.ts` — isso puxaria jsdom para os
+  testes de `@/lib`, que devem continuar a correr em `node`).
+- `src/test/setup.ts` (via `test.setupFiles`) trata de duas lacunas que, sem ele, produzem falhas
+  confusas e não relacionadas com o componente em teste: (1) limpeza automática do DOM entre testes
+  — este projeto não usa `test.globals: true`, por isso o Testing Library não deteta `afterEach`
+  sozinho; (2) polyfill de `hasPointerCapture`/`setPointerCapture`/`releasePointerCapture`/
+  `scrollIntoView`, que o jsdom não implementa e de que o Radix Toast depende para o gesto de
+  arrastar. Não remover nenhuma das duas partes.
+- Todo componente do inventário fechado tem `ComponentName.test.tsx`: renderiza, responde a
+  interação (`@testing-library/user-event`), e cobre o estado desativado quando aplicável.
 
 ## Qualidade
 

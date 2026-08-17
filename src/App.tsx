@@ -1,30 +1,35 @@
+import { useState } from 'react'
+import { Toast } from '@/components'
 import { useAppUpdate, useInstallPrompt } from '@/features/pwa'
-import { useSession } from '@/features/session'
-import { app, idle, install, update } from '@/strings'
+import {
+  ErrorView,
+  IdleView,
+  ProcessingView,
+  RecordingView,
+  ResultView,
+  useSession,
+} from '@/features/session'
+import type { SessionState } from '@/features/session'
+import { app, install, update } from '@/strings'
 import styles from './App.module.css'
 
-/**
- * Ecrã principal.
- *
- * Nesta tarefa mostra apenas o estado `idle` com placeholders. A Tarefa 3
- * substitui isto pelas cinco views (`IdleView`, `RecordingView`,
- * `ProcessingView`, `ResultView`, `ErrorView`), escolhidas por `switch`
- * exaustivo sobre `state.status` — ver Tarefa 3, decisão 7.
- *
- * O `useSession` já está ligado de propósito: garante que a máquina de estados
- * é o ponto de partida da interface, e não algo que se enxerta depois por cima
- * de booleanos.
- */
-export function App() {
-  const { state } = useSession()
+/** Só usada aqui — se um segundo sítio precisar dela, aí sim justifica-se
+ *  mover para um sítio partilhado. TypeScript falha a compilar se um `case`
+ *  ficar por tratar no switch abaixo (decisão 7 da Tarefa 3, aplicada). */
+function assertNever(value: never): never {
+  throw new Error(`Estado de sessão não tratado: ${JSON.stringify(value)}`)
+}
 
-  /* Os dois hooks recebem o estado da sessão porque o convite de instalação e
-     o aviso de atualização nunca podem aparecer a meio de gravar ou de
-     processar — ver Tarefa 2, decisão 5 e Âmbito técnico. */
+export function App() {
+  const session = useSession()
+  const { state } = session
+
   const { canInstall, promptInstall, isIosManualInstall } = useInstallPrompt(state.status)
   const { showUpdatePrompt, offlineReady, dismissOfflineReady, updateNow } = useAppUpdate(
     state.status,
   )
+  const [installDismissed, setInstallDismissed] = useState(false)
+  const [updateDismissed, setUpdateDismissed] = useState(false)
 
   return (
     <main className={styles.main}>
@@ -33,62 +38,73 @@ export function App() {
         <p className={styles.tagline}>{app.tagline}</p>
       </header>
 
-      {/* TODO Tarefa 3: substituir por IdleView / RecordingView / ProcessingView /
-          ResultView / ErrorView, com switch exaustivo sobre state.status. */}
-      <div className={styles.stage}>
-        {/* TODO Tarefa 4: onStartRecording */}
-        <button type="button" className={styles.record} disabled aria-describedby="record-hint">
-          {idle.recordButton}
-        </button>
-        <p id="record-hint" className={styles.hint}>
-          {idle.recordButtonHint}
-        </p>
+      <div className={styles.stage}>{renderStage(state, session)}</div>
 
-        {/* TODO Tarefa 5: onPickFile + zona de drop */}
-        <button type="button" className={styles.secondary} disabled>
-          {idle.pickFile}
-        </button>
-      </div>
+      <Toast
+        open={(canInstall || isIosManualInstall) && !installDismissed}
+        onOpenChange={(open) => {
+          if (!open) setInstallDismissed(true)
+        }}
+        title={install.message}
+        description={isIosManualInstall ? install.iosMessage : undefined}
+        action={
+          canInstall ? { label: install.action, onClick: () => void promptInstall() } : undefined
+        }
+      />
 
-      {/* Não remover nem esconder — ver Tarefa 3, decisão 6. */}
-      <p className={styles.limitation}>{idle.limitationNotice}</p>
+      <Toast
+        open={showUpdatePrompt && !updateDismissed}
+        onOpenChange={(open) => {
+          if (!open) setUpdateDismissed(true)
+        }}
+        title={update.message}
+        action={{ label: update.action, onClick: updateNow }}
+      />
 
-      {/* TODO Tarefa 3: substituir por Toast/Alert do inventário fechado de
-          componentes — isto é o mínimo funcional para verificar o fluxo. */}
-      {canInstall && (
-        <div className={styles.banner} role="status">
-          <p>{install.message}</p>
-          <button type="button" className={styles.secondary} onClick={() => void promptInstall()}>
-            {install.action}
-          </button>
-        </div>
-      )}
-
-      {!canInstall && isIosManualInstall && (
-        <div className={styles.banner} role="status">
-          <p>{install.iosMessage}</p>
-        </div>
-      )}
-
-      {showUpdatePrompt && (
-        <div className={styles.banner} role="status">
-          <p>{update.message}</p>
-          <button type="button" className={styles.secondary} onClick={updateNow}>
-            {update.action}
-          </button>
-        </div>
-      )}
-
-      {offlineReady && (
-        <div className={styles.banner} role="status">
-          <p>{update.offlineReadyMessage}</p>
-          <button type="button" className={styles.secondary} onClick={dismissOfflineReady}>
-            {update.dismiss}
-          </button>
-        </div>
-      )}
-
-      <p className={styles.debug}>estado: {state.status}</p>
+      <Toast
+        open={offlineReady}
+        onOpenChange={(open) => {
+          if (!open) dismissOfflineReady()
+        }}
+        title={update.offlineReadyMessage}
+      />
     </main>
   )
+}
+
+/**
+ * Switch exaustivo sobre `state.status` — ver Tarefa 3, decisão 7. Cada
+ * estado tem exatamente uma view; nunca duas ao mesmo tempo, nunca uma view a
+ * decidir sozinha o que mostrar a partir de flags de outro estado.
+ */
+function renderStage(state: SessionState, session: ReturnType<typeof useSession>) {
+  switch (state.status) {
+    case 'idle':
+      // TODO Tarefa 4: onStartRecording. TODO Tarefa 5: onPickFile.
+      return <IdleView />
+
+    case 'recording':
+      return (
+        <RecordingView
+          level={state.level}
+          elapsedMs={state.elapsedMs}
+          onStop={session.stopRecording}
+          onCancel={session.cancel}
+        />
+      )
+
+    case 'processing':
+      return (
+        <ProcessingView stage={state.stage} progress={state.progress} onCancel={session.cancel} />
+      )
+
+    case 'result':
+      return <ResultView document={state.document} onNewTranscription={session.reset} />
+
+    case 'error':
+      return <ErrorView recoverable={state.recoverable} onRestart={session.reset} />
+
+    default:
+      return assertNever(state)
+  }
 }

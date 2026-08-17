@@ -1,0 +1,40 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.default {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.default:not(:disabled):hover {
+  background: var(--color-surface-sunken);
+}
+
+.ghost:not(:disabled):hover {
+  background: var(--color-surface-sunken);
+}
+
+/* O alvo de toque não encolhe — só o ícone lá dentro. */
+.sm svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.md svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}

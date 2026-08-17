@@ -1,9 +1,9 @@
 /**
  * Textos do convite de instalação e do aviso de atualização — ver Tarefa 2.
  *
- * A interface aqui é propositadamente mínima (dois banners simples); a
- * Tarefa 3 substitui-os pelos componentes `Toast`/`Alert` do inventário
- * fechado, sem mudar o vocabulário.
+ * Mostrados através do componente `Toast` (Tarefa 3) — o próprio `Toast` já
+ * tem um botão de fechar, por isso não há aqui nenhum texto de "dispensar"
+ * separado.
  */
 
 export const install = {
@@ -18,5 +18,4 @@ export const update = {
   message: 'Há uma versão nova do pauta.',
   action: 'Atualizar',
   offlineReadyMessage: 'O pauta já funciona offline.',
-  dismiss: 'Dispensar',
 } as const

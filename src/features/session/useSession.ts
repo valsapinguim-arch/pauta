@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useReducer } from 'react'
 import type { ScoreDocument } from '@/lib/types'
+import { getDevStateOverride } from './devStateOverride'
 import { initialSessionState, sessionReducer } from './session.reducer'
 import type { AudioSource, ProcessingStage, SessionState } from './session.types'
 
@@ -25,7 +26,15 @@ export interface SessionApi {
  * reducer, em vez de espalhado por objetos de ação construídos no JSX.
  */
 export function useSession(): SessionApi {
-  const [state, dispatch] = useReducer(sessionReducer, initialSessionState)
+  /* Terceiro argumento do useReducer: inicializador tardio, corre uma vez.
+     Em produção (`getDevStateOverride` devolve sempre `null`) é equivalente a
+     `useReducer(sessionReducer, initialSessionState)` — ver Tarefa 3,
+     Âmbito técnico ("mecanismo de desenvolvimento para forçar cada estado"). */
+  const [state, dispatch] = useReducer(
+    sessionReducer,
+    initialSessionState,
+    (initial) => getDevStateOverride() ?? initial,
+  )
 
   const startRecording = useCallback((source: AudioSource) => {
     dispatch({ type: 'recording/start', source })
