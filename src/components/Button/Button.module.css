@@ -1,0 +1,72 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target-min);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- Variantes ---------------------------------------------------------- */
+
+.primary {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.primary:not(:disabled):hover {
+  background: var(--color-accent-hover);
+}
+
+.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.secondary:not(:disabled):hover {
+  background: var(--color-surface-sunken);
+}
+
+.danger {
+  background: var(--color-danger);
+  color: var(--color-accent-text);
+}
+
+/* --- Forma ---------------------------------------------------------------
+   circle + lg é o botão de gravar (Tarefa 3, decisão 4): o único elemento
+   visualmente primário do ecrã principal. */
+
+.circle {
+  border-radius: var(--radius-full);
+  padding: var(--space-3);
+  flex-direction: column;
+}
+
+.circle.lg {
+  width: 8rem;
+  height: 8rem;
+  font-size: var(--font-size-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.circle.lg svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.lg:not(.circle) {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-size-base);
+}

@@ -21,6 +21,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    /* Extensões do jest-dom (toBeDisabled, toBeInTheDocument, …) — inofensivo
+       em testes de @/lib (ambiente node): só toca no DOM quando um matcher é
+       mesmo chamado, nunca à importação. */
+    setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     /* Os e2e são do Playwright (Tarefa 20), não do Vitest. */
     exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
