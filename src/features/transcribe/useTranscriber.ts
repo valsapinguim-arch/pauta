@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import type { SessionApi } from '@/features/session'
+import { analyzeKey } from '@/lib/key/analyzeKey'
 import { cleanNotes } from '@/lib/notes/cleanNotes'
 import { quantize } from '@/lib/quantize/quantize'
 import { buildTempoMap } from '@/lib/tempo/buildTempoMap'
@@ -74,17 +75,21 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
           const { notes, confidence } = cleanNotes(message.notes)
           const tempoMap = buildTempoMap(notes)
           const { notes: quantized, rhythmConfidence } = quantize(notes, tempoMap)
-          // TODO Tarefa 11: seguir para a tonalidade (armação de clave,
-          // grafia de cada nota) — por agora só se confirma que a
-          // quantização rítmica funciona de ponta a ponta. O worker persiste
-          // (decisão 4 da Tarefa 7): não terminar aqui.
+          const keyAnalysis = analyzeKey(quantized)
+          // TODO Tarefa 12: seguir para a notação (montar o ScoreDocument
+          // com spellPitch/applyAccidentals e despachar finishProcessing) —
+          // por agora só se confirma que a deteção de tonalidade funciona
+          // de ponta a ponta. O worker persiste (decisão 4 da Tarefa 7): não
+          // terminar aqui.
           console.warn(
             `[pauta] notas limpas: ${notes.length} de ${message.notes.length} originais, ` +
               `confiança ${confidence.toFixed(2)}; tempo ${tempoMap.bpm.toFixed(0)} BPM ` +
               `(${tempoMap.source}, confiança ${tempoMap.confidence.toFixed(2)}); ` +
               `${quantized.length} figuras quantizadas, confiança rítmica ` +
-              `${rhythmConfidence.toFixed(2)}`,
-            { notes, tempoMap, quantized },
+              `${rhythmConfidence.toFixed(2)}; tonalidade ${keyAnalysis.tonic} ` +
+              `${keyAnalysis.mode} (${keyAnalysis.source}, confiança ` +
+              `${keyAnalysis.confidence.toFixed(2)})`,
+            { notes, tempoMap, quantized, keyAnalysis },
           )
           return
         }
