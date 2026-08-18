@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import type { SessionApi } from '@/features/session'
+import { cleanNotes } from '@/lib/notes/cleanNotes'
 import type { CapturedAudio } from '@/lib/types'
 import type { TranscribeRequest, TranscribeResponse } from '@/workers/transcribe.worker.types'
 
@@ -25,9 +26,15 @@ export interface TranscriberApi {
  * (Tarefa 7, decisão 4) — `workerRef` só é limpo por `cancel()` ou por um
  * erro fatal, nunca depois de um resultado com sucesso.
  *
- * Sem transcrição→pauta real ainda (Tarefa 8): ao terminar, só se regista o
- * `NoteEvent[]` e a sessão fica em `processing`, tal como as Tarefas 4-6 já
- * deixam ao chegar aqui.
+ * A limpeza de notas (Tarefa 8, `cleanNotes`) corre aqui, na thread
+ * principal, não dentro do worker: é `@/lib` puro e barato (operações sobre
+ * arrays, sem tensores), e o worker de transcrição existe só para o que
+ * precisa mesmo de correr lá — o modelo (Tarefa 7, decisão 9: "todo o resto
+ * do pipeline trabalha sobre um tipo próprio").
+ *
+ * Sem pauta real ainda (Tarefa 9+): ao terminar, só se regista o resultado
+ * limpo e a sessão fica em `processing`, tal como as Tarefas 4-7 já deixam
+ * ao chegar aqui.
  */
 export function useTranscriber(session: SessionApi): TranscriberApi {
   const workerRef = useRef<Worker | null>(null)
@@ -62,13 +69,15 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
         }
 
         if (message.type === 'result') {
-          // TODO Tarefa 8: limpar NoteEvent[] (uma só voz, sem artefactos) e
-          // seguir para a Tarefa 9 (tempo) — por agora só se confirma que a
-          // transcrição funciona de ponta a ponta. O worker persiste
-          // (decisão 4): não terminar aqui.
+          const { notes, confidence } = cleanNotes(message.notes)
+          // TODO Tarefa 9: seguir para o tempo (BPM, primeiro tempo forte) —
+          // por agora só se confirma que a limpeza funciona de ponta a
+          // ponta. O worker persiste (decisão 4 da Tarefa 7): não terminar
+          // aqui.
           console.warn(
-            `[pauta] transcrição concluída: ${message.notes.length} notas`,
-            message.notes,
+            `[pauta] notas limpas: ${notes.length} de ${message.notes.length} originais, ` +
+              `confiança ${confidence.toFixed(2)}`,
+            notes,
           )
           return
         }

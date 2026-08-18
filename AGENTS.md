@@ -31,7 +31,10 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
                      Toast) + icons/ e cx.ts (suporte, fora do inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
-                     partilhada entre workers/worklets e o resto da app (ex.: calculateRms)
+                     partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
+                     /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes) —
+                     nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
+                     (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
@@ -286,6 +289,36 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   O progresso mostrado é real nas duas etapas (`preparing-model`: bytes do modelo descarregados via
   `tf.loadGraphModel`'s `onProgress`; `transcribing`: fração de janelas de 2 s inferidas) — não há
   barra indeterminada em `ProcessingView` desde esta tarefa.
+
+## Pós-processamento de notas (Tarefa 8)
+
+- A remoção de harmónicos (`removeHarmonics`) corre sempre ANTES da redução a monofonia
+  (`reduceToMonophonic`) — pela ordem inversa a pauta sai uma oitava acima em passagens inteiras. A
+  ordem de `cleanNotes` é fixa: `sortByOnset → mergeFragmented → removeHarmonics →
+reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfidence`. Não reordenar.
+- Em notas simultâneas mantém-se sempre a mais aguda (`reduceToMonophonic`); proibido mudar o
+  critério para amplitude ou duração sem justificação medida contra áudio real. As notas descartadas
+  são-no por inteiro — nunca cortadas, aparadas ou ajustadas.
+- Filtros de amplitude (`filterByAmplitude`) são sempre relativos à amplitude MEDIANA das notas
+  detetadas; proibido limiar absoluto — trata mal os dois extremos (elimina tudo numa gravação
+  fraca, nada numa forte).
+- Proibido inventar, interpolar ou "corrigir" notas em qualquer função de `@/lib/notes`: não se
+  preenchem lacunas, não se ajustam alturas a uma escala, não se suavizam saltos. O que o modelo não
+  detetou não existe — isto é diferente da grafia segundo a tonalidade (Tarefa 11), que decide COMO
+  escrever uma altura já detetada, nunca inventa altura nenhuma.
+- `computeConfidence` é só informativa — nunca bloqueia o pipeline nem impede o utilizador de ver o
+  resultado, seja qual for o valor. `0` só acontece com entrada vazia ou quando a limpeza descarta
+  tudo; não confundir com um erro.
+- Constantes de limpeza vivem exclusivamente em `NOTE_CLEANUP` (`@/lib/notes/constants.ts`),
+  marcadas como provisórias até afinação com áudio real (Tarefa 13) — proibido valor literal dentro
+  das funções de `@/lib/notes`. Interagem com `MODEL_THRESHOLDS` (Tarefa 7): apertar um permite
+  aliviar o outro; afinar os dois em conjunto.
+- Funções de `@/lib/notes` são puras e testadas com notas escritas à mão — nunca precisam de áudio
+  nem do modelo para serem exercitadas. Cada ficheiro de função tem o seu próprio teste (mesma
+  convenção de `@/lib/audio`); sem exceções.
+- `cleanNotes` corre na thread principal (dentro de `useTranscriber`), não no worker de transcrição:
+  é lógica pura e barata, e o worker existe só para o que precisa mesmo de lá estar — o modelo
+  (Tarefa 7, decisão 9).
 
 ## PWA e service worker (Tarefa 2)
 
