@@ -7,8 +7,9 @@ import {
   type RefObject,
 } from 'react'
 import type { SessionApi } from '@/features/session'
-import { downmixToMono } from '@/lib/audio/downmixToMono'
 import { calculateRms } from '@/lib/audio/rms'
+import { toMono } from '@/lib/audio/toMono'
+import type { CapturedAudio } from '@/lib/types'
 import { MAX_RECORDING_MS, TOO_QUIET_RMS_THRESHOLD } from './useMicrophone'
 
 export type FileErrorCode =
@@ -63,21 +64,24 @@ export function sanitizeFileName(name: string): string {
  * entre `start`/`stop` — cada ficheiro é um ciclo síncrono de validar,
  * descodificar e decidir, por isso não há separação entre um hook "puro" e
  * uma ponte para a sessão: aqui os dois cabem juntos.
+ *
+ * `onAudioReady` (Tarefa 6) entrega o PCM descodificado a quem o
+ * pré-processa — ver a mesma nota em `useRecordingFlow`.
  */
-export function useFilePicker(session: SessionApi): FilePickerApi {
+export function useFilePicker(
+  session: SessionApi,
+  onAudioReady: (audio: CapturedAudio) => void,
+): FilePickerApi {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [decoding, setDecoding] = useState(false)
   const [pendingTruncation, setPendingTruncation] = useState<PendingTruncation | null>(null)
 
   const finish = useCallback(
     (pcm: Float32Array, sampleRate: number, fileName: string) => {
-      // TODO Tarefa 6: entregar { pcm, sampleRate } ao pré-processamento —
-      // por agora só se confirma que a importação funciona de ponta a ponta,
-      // tal como em `useRecordingFlow.onCaptured`.
-      console.warn(`[pauta] ficheiro descodificado: ${pcm.length} amostras a ${sampleRate} Hz`)
       session.startProcessing({ kind: 'file', name: fileName })
+      onAudioReady({ pcm, sampleRate })
     },
-    [session],
+    [session, onAudioReady],
   )
 
   const processFile = useCallback(
@@ -113,7 +117,7 @@ export function useFilePicker(session: SessionApi): FilePickerApi {
         for (let i = 0; i < audioBuffer.numberOfChannels; i += 1) {
           channels.push(audioBuffer.getChannelData(i))
         }
-        const pcm = downmixToMono(channels)
+        const pcm = toMono(channels)
         const sampleRate = audioBuffer.sampleRate
         const durationMs = (pcm.length / sampleRate) * 1000
         const fileName = sanitizeFileName(file.name)

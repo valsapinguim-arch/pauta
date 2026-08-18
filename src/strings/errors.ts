@@ -1,4 +1,5 @@
 import type { FileErrorCode, MicrophoneErrorCode } from '@/features/capture'
+import type { PreprocessErrorCode } from '@/features/transcribe'
 
 /**
  * Textos de erro — ver Tarefa 4, Âmbito técnico.
@@ -93,12 +94,33 @@ export const fileErrors: Record<Exclude<FileErrorCode, 'too-quiet'>, ErrorMessag
   },
 }
 
-/** Junta os dois catálogos — ver a nota sobre `too-quiet` acima. Único sítio
- *  que sabe que os dois mapas partilham um código; `isKnownErrorCode` e
- *  `getErrorMessage` consomem só isto. */
-const allErrors: Record<string, ErrorMessage> = { ...microphoneErrors, ...fileErrors }
+/**
+ * Erro da Tarefa 6 (pré-processamento). Ao contrário dos catálogos acima,
+ * não há vários códigos nomeados — `assertModelInput` e o resto da cadeia de
+ * DSP são a última linha de defesa (Tarefa 6, decisão 9): se falharem, é o
+ * próprio pipeline a produzir algo inválido, não uma escolha do utilizador
+ * com uma ação diferente para cada caso. Um código único chega.
+ */
+export const preprocessErrors: Record<PreprocessErrorCode, ErrorMessage> = {
+  'preprocess-failed': {
+    title: 'Não foi possível preparar o áudio',
+    body: 'Alguma coisa correu mal a processar o áudio antes de transcrever. Tenta gravar ou importar outra vez.',
+    action: 'Tentar novamente',
+  },
+}
 
-export function isKnownErrorCode(code: string): code is MicrophoneErrorCode | FileErrorCode {
+/** Junta os catálogos — ver a nota sobre `too-quiet` acima. Único sítio que
+ *  sabe que há vários mapas; `isKnownErrorCode` e `getErrorMessage`
+ *  consomem só isto. */
+const allErrors: Record<string, ErrorMessage> = {
+  ...microphoneErrors,
+  ...fileErrors,
+  ...preprocessErrors,
+}
+
+export function isKnownErrorCode(
+  code: string,
+): code is MicrophoneErrorCode | FileErrorCode | PreprocessErrorCode {
   return code in allErrors
 }
 

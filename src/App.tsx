@@ -12,6 +12,8 @@ import {
   useSession,
 } from '@/features/session'
 import type { SessionApi, SessionState } from '@/features/session'
+import { usePreprocessAudio } from '@/features/transcribe'
+import type { PreprocessAudioApi } from '@/features/transcribe'
 import { app, install, update } from '@/strings'
 import styles from './App.module.css'
 
@@ -25,8 +27,9 @@ function assertNever(value: never): never {
 export function App() {
   const session = useSession()
   const { state } = session
-  const recording = useRecordingFlow(session)
-  const filePicker = useFilePicker(session)
+  const preprocess = usePreprocessAudio(session)
+  const recording = useRecordingFlow(session, preprocess.run)
+  const filePicker = useFilePicker(session, preprocess.run)
 
   const { canInstall, promptInstall, isIosManualInstall } = useInstallPrompt(state.status)
   const { showUpdatePrompt, offlineReady, dismissOfflineReady, updateNow } = useAppUpdate(
@@ -42,7 +45,9 @@ export function App() {
         <p className={styles.tagline}>{app.tagline}</p>
       </header>
 
-      <div className={styles.stage}>{renderStage(state, session, recording, filePicker)}</div>
+      <div className={styles.stage}>
+        {renderStage(state, session, recording, filePicker, preprocess)}
+      </div>
 
       <Toast
         open={(canInstall || isIosManualInstall) && !installDismissed}
@@ -86,6 +91,7 @@ function renderStage(
   session: SessionApi,
   recording: RecordingFlowApi,
   filePicker: FilePickerApi,
+  preprocess: PreprocessAudioApi,
 ) {
   switch (state.status) {
     case 'idle':
@@ -121,7 +127,11 @@ function renderStage(
 
     case 'processing':
       return (
-        <ProcessingView stage={state.stage} progress={state.progress} onCancel={session.cancel} />
+        <ProcessingView
+          stage={state.stage}
+          progress={state.progress}
+          onCancel={preprocess.cancel}
+        />
       )
 
     case 'result':

@@ -22,6 +22,27 @@ export const TICKS_PER_QUARTER = 480
 export type AnalysisSource = 'detected' | 'assumed' | 'manual'
 
 // ---------------------------------------------------------------------------
+// 0. Áudio capturado (Tarefas 4/5), antes do pré-processamento (Tarefa 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * PCM + taxa de amostragem — a forma de saída partilhada pela captura por
+ * microfone (Tarefa 4) e pela importação de ficheiro (Tarefa 5); ver
+ * `@/features/capture`. Vive aqui (e não numa das duas features) porque a
+ * Tarefa 6 e a sessão (`@/features/session`) também precisam dele, e as
+ * features não se importam uma à outra por um tipo — só por um `index.ts`
+ * que ambas consomem.
+ *
+ * Não é ainda o formato que o modelo de transcrição exige (mono a 22050 Hz,
+ * `docs/architecture.md`, decisão 5) — essa garantia só existe depois do
+ * worker de áudio (Tarefa 6, `assertModelInput`).
+ */
+export interface CapturedAudio {
+  pcm: Float32Array
+  sampleRate: number
+}
+
+// ---------------------------------------------------------------------------
 // 1. Saída do modelo (Tarefa 7), depois de limpa pela Tarefa 8
 // ---------------------------------------------------------------------------
 
