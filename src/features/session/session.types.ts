@@ -1,4 +1,4 @@
-import type { ScoreDocument } from '@/lib/types'
+import type { NoteEvent, ScoreDocument } from '@/lib/types'
 
 /**
  * Estado do ecrã principal — ver Tarefa 1, decisão 3.
@@ -40,7 +40,14 @@ export type SessionState =
        *  tempo estimado. */
       progress: number
     }
-  | { status: 'result'; document: ScoreDocument }
+  | {
+      status: 'result'
+      document: ScoreDocument
+      /** Notas limpas (Tarefa 8) que geraram o documento — mantidas depois
+       *  de consumidas para que a correção manual do BPM (Tarefa 9, decisão
+       *  7) recalcule sem repetir a inferência do modelo. Não descartar. */
+      notes: NoteEvent[]
+    }
   | {
       status: 'error'
       /** Código do catálogo de erros (Tarefa 21, decisão 1). Tipado como
@@ -55,7 +62,7 @@ export type SessionAction =
   | { type: 'recording/stop' }
   | { type: 'processing/start'; source: AudioSource }
   | { type: 'processing/advance'; stage: ProcessingStage; progress: number }
-  | { type: 'processing/done'; document: ScoreDocument }
+  | { type: 'processing/done'; document: ScoreDocument; notes: NoteEvent[] }
   /** Correção de BPM (Tarefa 9), de tonalidade (Tarefa 11) ou edição manual
    *  (Tarefa 17): substitui o documento sem repetir a inferência. */
   | { type: 'result/replace'; document: ScoreDocument }

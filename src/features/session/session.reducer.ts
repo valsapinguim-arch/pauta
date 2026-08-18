@@ -76,7 +76,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         case 'processing/advance':
           return { ...state, stage: action.stage, progress: clamp01(action.progress) }
         case 'processing/done':
-          return { status: 'result', document: action.document }
+          return { status: 'result', document: action.document, notes: action.notes }
         case 'cancel':
           return { status: 'idle' }
         default:
@@ -86,7 +86,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'result':
       switch (action.type) {
         case 'result/replace':
-          return { status: 'result', document: action.document }
+          return { status: 'result', document: action.document, notes: state.notes }
         /* Gravar ou importar de novo a partir do resultado, sem passar por
            `idle` — o utilizador carrega no botão e grava. */
         case 'recording/start':

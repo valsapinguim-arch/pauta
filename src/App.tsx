@@ -14,6 +14,7 @@ import {
 import type { SessionApi, SessionState } from '@/features/session'
 import { usePreprocessAudio, useTranscriber } from '@/features/transcribe'
 import type { PreprocessAudioApi, TranscriberApi } from '@/features/transcribe'
+import { applyManualBpm } from '@/lib/tempo/applyManualBpm'
 import { app, install, update } from '@/strings'
 import styles from './App.module.css'
 
@@ -144,7 +145,13 @@ function renderStage(
       )
 
     case 'result':
-      return <ResultView document={state.document} onNewTranscription={session.reset} />
+      return (
+        <ResultView
+          document={state.document}
+          onNewTranscription={session.reset}
+          onBpmChange={(bpm) => session.replaceDocument(applyManualBpm(state.document, bpm))}
+        />
+      )
 
     case 'error':
       return (

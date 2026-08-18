@@ -1,1 +1,1 @@
-export { AlertTriangleIcon, CloseIcon, MicIcon, StopIcon } from './icons'
+export { AlertTriangleIcon, CloseIcon, MicIcon, MinusIcon, PlusIcon, StopIcon } from './icons'

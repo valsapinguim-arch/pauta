@@ -320,6 +320,34 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
   é lógica pura e barata, e o worker existe só para o que precisa mesmo de lá estar — o modelo
   (Tarefa 7, decisão 9).
 
+## Deteção de tempo (Tarefa 9)
+
+- A deteção de tempo trabalha exclusivamente sobre `NoteEvent[]`; proibido reprocessar o PCM em
+  `@/lib/tempo` — o áudio não atravessa esta fronteira.
+- O compasso é sempre 4/4 nesta fase; não implementar deteção de compasso sem atualizar
+  `docs/architecture.md` e a Tarefa 10 (que assume compassos de 4 tempos).
+- Quando a confiança do tempo é baixa (`TEMPO.MIN_CONFIDENCE` em `@/lib/tempo/constants.ts`),
+  assume-se `TEMPO.DEFAULT_BPM` (120) com `source: 'assumed'` e avisa-se o utilizador
+  (`ResultView`, quando `tempo.source === 'assumed'`); proibido apresentar um BPM inventado como
+  detetado.
+- O BPM é sempre editável pelo utilizador (`ResultView`, controlo +/- sobre `IconButton` — não um
+  `Input`, ver nota abaixo) e alterá-lo recalcula apenas de `TempoMap` para a frente
+  (`applyManualBpm`, `@/lib/tempo/applyManualBpm.ts`) — proibido repetir a inferência do modelo
+  quando só o tempo muda.
+- `NoteEvent[]` limpo permanece no estado da sessão (`SessionState`, caso `result`, campo `notes`)
+  depois de consumido, precisamente para permitir esse recálculo; não descartar nem remover este
+  campo ao tocar em `session.reducer.ts`.
+- `TempoMap` tem sempre `source` preenchido (`detected` | `assumed` | `manual`) — a proveniência do
+  andamento é informação que o utilizador vê.
+- O andamento é constante por peça; se algum dia houver variação, estende-se `TempoMap` com
+  secções em vez de mudar as assinaturas a jusante.
+- O controlo de BPM em `ResultView` usa um par de `IconButton` (+/-), não um `Input` — a Tarefa 3
+  fechou o inventário de componentes em sete e este não introduz um oitavo; só reconsiderar com
+  justificação escrita numa tarefa futura que precise mesmo de entrada de texto livre.
+- `applyManualBpm` (`@/lib/tempo/applyManualBpm.ts`) só mexe em `tempo` e em
+  `metadata.confidence.tempo` — ainda não existe quantização nem notação (Tarefas 10/12) para
+  recalcular a partir daqui; quando existirem, é esta função que passa a reconstruir `measures`.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
