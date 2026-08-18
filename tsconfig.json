@@ -35,5 +35,8 @@
     }
   },
   "include": ["src", "*.config.ts", "eslint.config.js"],
-  "exclude": ["node_modules", "dist", "coverage"]
+  /* sw.ts e os Web Workers têm o seu próprio tsconfig.worker.json (lib
+     WebWorker, não DOM) — ver Tarefa 2. Incluí-los aqui faria `self` colidir
+     entre `Window` e `ServiceWorkerGlobalScope`/`DedicatedWorkerGlobalScope`. */
+  "exclude": ["node_modules", "dist", "coverage", "src/sw.ts", "src/workers/**/*.ts"]
 }

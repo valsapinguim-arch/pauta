@@ -1,0 +1,7 @@
+# NÃO é um mono-repo (ver AGENTS.md, "Uma só package.json na raiz"). O pnpm
+# moderno usa este ficheiro só para a allowlist de scripts de build nativos —
+# sem campo `packages:`, não declara nenhum workspace. `sharp` (usado por
+# @vite-pwa/assets-generator para gerar os ícones) precisa de compilar um
+# binário nativo; aprovado explicitamente via `pnpm approve-builds sharp`.
+allowBuilds:
+  sharp: true

@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    /* WebWorker, não DOM: partilhar o `lib` do tsconfig.json faria `self`
+       colidir entre `Window` e `ServiceWorkerGlobalScope`/`DedicatedWorkerGlobalScope`.
+       Cobre já o sw.ts (Tarefa 2) e os workers de áudio/transcrição
+       (Tarefas 6 e 7), que têm a mesma restrição de contexto global. */
+    "lib": ["ES2022", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "types": [],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    /* Sem exactOptionalPropertyTypes aqui (ao contrário do tsconfig.json
+       principal): os próprios tipos do workbox-expiration não são escritos
+       para essa restrição (`cacheDidUpdate?: Callback` vs. exigir
+       `Callback | undefined`) — este ficheiro é sobretudo cola para
+       bibliotecas de terceiros, não as estruturas de dados do pipeline que
+       exactOptionalPropertyTypes protege em @/lib. */
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/sw.ts", "src/workers/**/*.ts"],
+  /* Os AudioWorklets (Tarefa 4) são um TERCEIRO tipo de ambiente global,
+     nem DOM nem WebWorker — têm o seu próprio tsconfig.worklet.json. */
+  "exclude": ["src/workers/*.worklet.ts"]
+}

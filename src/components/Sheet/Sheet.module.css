@@ -1,0 +1,21 @@
+.sheet {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.elevated {
+  box-shadow: var(--shadow-md);
+}
+
+.sm {
+  padding: var(--space-3);
+}
+
+.md {
+  padding: var(--space-4);
+}
+
+.lg {
+  padding: var(--space-6);
+}

@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 
@@ -105,6 +106,66 @@ export default tseslint.config(
       eqeqeq: ['error', 'always'],
       'prefer-const': 'error',
       'object-shorthand': 'error',
+    },
+  },
+
+  reactHooks.configs.flat.recommended,
+
+  /**
+   * Pureza de `@/lib` — ver AGENTS.md e Tarefa 1, decisão 5.
+   *
+   * O pipeline de transcrição é uma cadeia de funções puras. Essa pureza é o
+   * que permite testá-lo em Node, sem jsdom, sem áudio e sem modelo — e é a
+   * condição para os testes de regressão da Tarefa 20 serem rápidos e
+   * determinísticos. Escrita apenas como regra em prosa, erodia na primeira
+   * vez que alguém precisasse de `Date.now()`; aqui o linter recusa.
+   */
+  {
+    files: ['src/lib/**/*.ts'],
+    ignores: ['src/lib/**/*.{test,spec}.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../*', '../../*', '../../../*', '../../../../*'],
+              message: 'Usa o alias @/... em vez de imports relativos ascendentes.',
+            },
+            {
+              group: ['@/features/*', '@/components/*', '@/workers/*'],
+              message:
+                '@/lib não depende de features, componentes ou workers — a dependência é sempre no sentido oposto.',
+            },
+          ],
+          paths: [
+            {
+              name: 'react',
+              message: '@/lib é lógica pura: não importa React.',
+            },
+            {
+              name: 'react-dom',
+              message: '@/lib é lógica pura: não importa React.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: '@/lib é puro: sem DOM, sem window.' },
+        { name: 'document', message: '@/lib é puro: sem DOM.' },
+        { name: 'navigator', message: '@/lib é puro: sem navigator.' },
+        { name: 'localStorage', message: '@/lib é puro: sem armazenamento.' },
+        { name: 'sessionStorage', message: '@/lib é puro: sem armazenamento.' },
+        { name: 'indexedDB', message: '@/lib é puro: a persistência é da feature library.' },
+        { name: 'fetch', message: '@/lib é puro: sem I/O.' },
+        { name: 'XMLHttpRequest', message: '@/lib é puro: sem I/O.' },
+        { name: 'AudioContext', message: '@/lib é puro: o Web Audio vive nas features.' },
+        {
+          name: 'OfflineAudioContext',
+          message: '@/lib é puro: o Web Audio vive nas features.',
+        },
+      ],
     },
   },
 

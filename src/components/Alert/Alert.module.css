@@ -1,0 +1,41 @@
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+/* Discreto de propósito — ver Tarefa 3, decisão 6. Não é suposto parecer que
+   a app está estragada. */
+.info {
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+}
+
+.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.125rem;
+}
+
+.body {
+  min-width: 0;
+}
+
+.title {
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-1);
+}
+
+.content {
+  color: inherit;
+}

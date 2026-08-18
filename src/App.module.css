@@ -1,0 +1,31 @@
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
+  max-width: 40rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.header {
+  text-align: center;
+}
+
+.name {
+  font-size: var(--font-size-2xl);
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  color: var(--color-text-muted);
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
