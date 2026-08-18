@@ -11,8 +11,15 @@ import prettier from 'eslint-config-prettier'
  * Esta lista começa vazia e cresce de forma controlada — a Tarefa 7 acrescenta
  * aqui (e só aqui) o módulo que carrega o modelo de `/public/models`.
  * Cada adição é uma decisão consciente, não um ajuste de conveniência.
+ *
+ * `transcribe.worker.ts` (Tarefa 7) carrega o modelo e os binários WASM de
+ * `/models/` — sempre da própria origem, nunca de CDN (decisão 3). Nem
+ * `tf.loadGraphModel` nem `setWasmPaths` escrevem `fetch` no código deste
+ * ficheiro (fica dentro do TensorFlow.js), por isso as regras abaixo não
+ * disparariam de qualquer forma — a entrada fica aqui para o registo ficar
+ * explícito e fácil de encontrar, não porque o lint precise dela para passar.
  */
-const NETWORK_ALLOWLIST = []
+const NETWORK_ALLOWLIST = ['src/workers/transcribe.worker.ts']
 
 /** Mensagem única para as regras de rede, para não divergirem entre si. */
 const NO_NETWORK =
@@ -178,6 +185,20 @@ export default tseslint.config(
     rules: {
       'no-restricted-globals': 'off',
       'no-restricted-syntax': 'off',
+    },
+  },
+
+  /* Scripts de linha de comandos (`pnpm copy-model-assets`, Tarefa 7) — Node,
+     não browser; `console.log` é a própria razão de existir do script. */
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+    rules: {
+      'no-restricted-globals': 'off',
+      'no-restricted-syntax': 'off',
+      'no-console': 'off',
     },
   },
 

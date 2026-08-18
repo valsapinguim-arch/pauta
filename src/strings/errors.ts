@@ -1,5 +1,5 @@
 import type { FileErrorCode, MicrophoneErrorCode } from '@/features/capture'
-import type { PreprocessErrorCode } from '@/features/transcribe'
+import type { PreprocessErrorCode, TranscribeErrorCode } from '@/features/transcribe'
 
 /**
  * Textos de erro — ver Tarefa 4, Âmbito técnico.
@@ -109,6 +109,31 @@ export const preprocessErrors: Record<PreprocessErrorCode, ErrorMessage> = {
   },
 }
 
+/**
+ * Erros da Tarefa 7 (transcrição). `model-unavailable` e
+ * `backend-unavailable` têm ação própria porque a causa mais provável é
+ * específica (rede em baixo antes da primeira utilização; navegador sem
+ * WASM nem WebGL) — `transcribe-failed` é o catch-all para o resto,
+ * incluindo falhas de memória, difíceis de distinguir de forma fiável.
+ */
+export const transcribeErrors: Record<TranscribeErrorCode, ErrorMessage> = {
+  'model-unavailable': {
+    title: 'Não foi possível carregar o modelo',
+    body: 'É preciso estar ligado à internet na primeira transcrição, para descarregar o modelo uma única vez. Verifica a ligação e tenta outra vez.',
+    action: 'Tentar novamente',
+  },
+  'backend-unavailable': {
+    title: 'Este browser não consegue transcrever',
+    body: 'Não foi possível iniciar o motor de transcrição neste dispositivo. Experimenta um browser atual, como o Chrome ou o Safari.',
+    action: 'Voltar ao início',
+  },
+  'transcribe-failed': {
+    title: 'Não foi possível transcrever',
+    body: 'Alguma coisa correu mal durante a transcrição. Tenta outra vez, ou experimenta um trecho mais curto.',
+    action: 'Tentar novamente',
+  },
+}
+
 /** Junta os catálogos — ver a nota sobre `too-quiet` acima. Único sítio que
  *  sabe que há vários mapas; `isKnownErrorCode` e `getErrorMessage`
  *  consomem só isto. */
@@ -116,11 +141,12 @@ const allErrors: Record<string, ErrorMessage> = {
   ...microphoneErrors,
   ...fileErrors,
   ...preprocessErrors,
+  ...transcribeErrors,
 }
 
 export function isKnownErrorCode(
   code: string,
-): code is MicrophoneErrorCode | FileErrorCode | PreprocessErrorCode {
+): code is MicrophoneErrorCode | FileErrorCode | PreprocessErrorCode | TranscribeErrorCode {
   return code in allErrors
 }
 

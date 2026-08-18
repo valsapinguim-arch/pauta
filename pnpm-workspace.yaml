@@ -3,5 +3,16 @@
 # sem campo `packages:`, não declara nenhum workspace. `sharp` (usado por
 # @vite-pwa/assets-generator para gerar os ícones) precisa de compilar um
 # binário nativo; aprovado explicitamente via `pnpm approve-builds sharp`.
+# `core-js` é transitivo (via @tensorflow/tfjs, Tarefa 7) — só faz polyfills
+# de ambiente, sem binário nativo nenhum; script de build desativado.
 allowBuilds:
+  core-js: false
   sharp: true
+
+# Ver Tarefa 7, Registado durante a implementação: `@spotify/basic-pitch`
+# depende de `@tensorflow/tfjs@^3.2.0` (2021) e traz a sua própria cópia. Sem
+# isto, ficam DUAS instâncias de tfjs na árvore — uma delas nunca vê o backend
+# WASM/WebGL registado pela outra, e `model.execute()` falha com "backend not
+# found". Força toda a árvore a partilhar a mesma instância, a nossa (4.22.0).
+overrides:
+  '@tensorflow/tfjs': ^4.22.0
