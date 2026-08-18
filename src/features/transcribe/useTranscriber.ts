@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import type { SessionApi } from '@/features/session'
 import { cleanNotes } from '@/lib/notes/cleanNotes'
+import { buildTempoMap } from '@/lib/tempo/buildTempoMap'
 import type { CapturedAudio } from '@/lib/types'
 import type { TranscribeRequest, TranscribeResponse } from '@/workers/transcribe.worker.types'
 
@@ -70,14 +71,16 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
 
         if (message.type === 'result') {
           const { notes, confidence } = cleanNotes(message.notes)
-          // TODO Tarefa 9: seguir para o tempo (BPM, primeiro tempo forte) —
-          // por agora só se confirma que a limpeza funciona de ponta a
-          // ponta. O worker persiste (decisão 4 da Tarefa 7): não terminar
-          // aqui.
+          const tempoMap = buildTempoMap(notes)
+          // TODO Tarefa 10: seguir para a quantização (figuras rítmicas,
+          // pausas, ligaduras) — por agora só se confirma que a deteção de
+          // tempo funciona de ponta a ponta. O worker persiste (decisão 4 da
+          // Tarefa 7): não terminar aqui.
           console.warn(
             `[pauta] notas limpas: ${notes.length} de ${message.notes.length} originais, ` +
-              `confiança ${confidence.toFixed(2)}`,
-            notes,
+              `confiança ${confidence.toFixed(2)}; tempo ${tempoMap.bpm.toFixed(0)} BPM ` +
+              `(${tempoMap.source}, confiança ${tempoMap.confidence.toFixed(2)})`,
+            { notes, tempoMap },
           )
           return
         }

@@ -74,6 +74,17 @@ export interface TempoMap {
   source: AnalysisSource
 }
 
+/** Grelha de tempos e limites de compasso sobre a qual a Tarefa 10
+ *  (quantização) trabalha — ver Tarefa 9, Âmbito técnico. Derivada de um
+ *  `TempoMap` e de uma duração; não guarda estado próprio nenhum. */
+export interface BeatGrid {
+  /** Momento de cada tempo (batida), em segundos, do primeiro ao último
+   *  dentro da duração da peça. */
+  beatsSec: number[]
+  /** Subconjunto de `beatsSec`: só os tempos que iniciam um compasso novo. */
+  measureBoundariesSec: number[]
+}
+
 // ---------------------------------------------------------------------------
 // 3. Quantização (Tarefa 10)
 // ---------------------------------------------------------------------------

@@ -85,4 +85,19 @@ export const result = {
   /* TODO Tarefa 15: os cinco formatos reais (MusicXML, MIDI, PNG, PDF,
      partilha). Este é só o slot, desativado. */
   export: 'Exportar',
+
+  /**
+   * Controlo de BPM — Tarefa 9, decisão 6: o andamento nunca se apresenta
+   * como facto, é sempre uma estimativa editável.
+   */
+  tempoLabel: 'Andamento',
+  bpmUnit: 'BPM',
+  decreaseBpm: 'Diminuir andamento em 1 BPM',
+  increaseBpm: 'Aumentar andamento em 1 BPM',
+
+  /** Aviso quando `tempo.source === 'assumed'` (Tarefa 9, decisão 5) — o
+   *  andamento não foi detetado com confiança suficiente. */
+  assumedTempoTitle: 'Andamento assumido',
+  assumedTempoBody:
+    'Não foi possível detetar o andamento com confiança. Corrige o valor ao lado se não for este.',
 } as const
