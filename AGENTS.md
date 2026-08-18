@@ -348,6 +348,37 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
   `metadata.confidence.tempo` — ainda não existe quantização nem notação (Tarefas 10/12) para
   recalcular a partir daqui; quando existirem, é esta função que passa a reconstruir `measures`.
 
+## Quantização rítmica (Tarefa 10)
+
+- Durações internas de notação são sempre inteiros em ticks (480 por semínima, `TICKS_PER_QUARTER`
+  em `@/lib/types.ts`); proibido representar durações de notação em segundos ou em `float` — a
+  validação de compassos em `quantize` (`@/lib/quantize/quantize.ts`) depende de aritmética exata.
+- A grelha de quantização é binária até 1/16 (`QUANTIZE.MIN_SUBDIVISION_TICKS`,
+  `@/lib/quantize/constants.ts`); não introduzir tercinas ou quinálteras sem atualizar
+  `docs/architecture.md`, a Tarefa 12 e os exportadores da Tarefa 15.
+- Sobreposições resolvem-se encurtando a nota anterior (`resolveOverlaps.ts`); proibido deslocar o
+  início de uma nota para resolver uma sobreposição — os inícios são a informação rítmica a
+  preservar.
+- Uma nota nunca é eliminada na quantização; se for demasiado curta, é promovida à subdivisão
+  mínima (`nearestNoteDuration`/`largestNoteDurationAtMost`, `@/lib/quantize/noteDurations.ts`,
+  que nunca devolvem nada mais curto do que uma semicorchea).
+- Notas que atravessam a barra de compasso são sempre divididas e ligadas com ligadura de
+  prolongação (`splitAcrossBarlines.ts`); proibido truncar ou deixar atravessar.
+- Todo o compasso soma exatamente `QUANTIZE.MEASURE_TICKS`, incluindo o último (preenchido com
+  pausas por `padFinalMeasure.ts`). `quantize()` valida isto explicitamente e lança um erro se
+  falhar — não desativar nem capturar essa exceção para "continuar mesmo assim".
+- Pausas são decompostas segundo a tabela canónica de figuras (`NOTE_DURATIONS`,
+  `noteDurations.ts`) alinhada aos limites de tempo E de compasso (`decomposeRestTicks.ts`);
+  proibido gerar uma pausa única que ignore essa divisão.
+- Cada `QuantizedNote` mantém `sourceIndex` para a `NoteEvent` de origem; partes de uma nota ligada
+  partilham o mesmo `sourceIndex` e são sempre tratadas em conjunto pela reprodução (Tarefa 14) e
+  pela edição manual (Tarefa 17).
+- O compasso é sempre 4/4 (`QUANTIZE.BEAT_TICKS`/`MEASURE_TICKS` são constantes fixas, não
+  derivadas de um `TimeSignature` recebido) — mesma limitação da Tarefa 9, revista em conjunto se
+  algum dia mudar.
+- Quando o resultado parecer ritmicamente absurdo, suspeitar primeiro do BPM (Tarefa 9), não desta
+  lógica — a quantização está limitada pela qualidade do `TempoMap` que recebe.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar

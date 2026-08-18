@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import type { SessionApi } from '@/features/session'
 import { cleanNotes } from '@/lib/notes/cleanNotes'
+import { quantize } from '@/lib/quantize/quantize'
 import { buildTempoMap } from '@/lib/tempo/buildTempoMap'
 import type { CapturedAudio } from '@/lib/types'
 import type { TranscribeRequest, TranscribeResponse } from '@/workers/transcribe.worker.types'
@@ -72,15 +73,18 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
         if (message.type === 'result') {
           const { notes, confidence } = cleanNotes(message.notes)
           const tempoMap = buildTempoMap(notes)
-          // TODO Tarefa 10: seguir para a quantização (figuras rítmicas,
-          // pausas, ligaduras) — por agora só se confirma que a deteção de
-          // tempo funciona de ponta a ponta. O worker persiste (decisão 4 da
-          // Tarefa 7): não terminar aqui.
+          const { notes: quantized, rhythmConfidence } = quantize(notes, tempoMap)
+          // TODO Tarefa 11: seguir para a tonalidade (armação de clave,
+          // grafia de cada nota) — por agora só se confirma que a
+          // quantização rítmica funciona de ponta a ponta. O worker persiste
+          // (decisão 4 da Tarefa 7): não terminar aqui.
           console.warn(
             `[pauta] notas limpas: ${notes.length} de ${message.notes.length} originais, ` +
               `confiança ${confidence.toFixed(2)}; tempo ${tempoMap.bpm.toFixed(0)} BPM ` +
-              `(${tempoMap.source}, confiança ${tempoMap.confidence.toFixed(2)})`,
-            { notes, tempoMap },
+              `(${tempoMap.source}, confiança ${tempoMap.confidence.toFixed(2)}); ` +
+              `${quantized.length} figuras quantizadas, confiança rítmica ` +
+              `${rhythmConfidence.toFixed(2)}`,
+            { notes, tempoMap, quantized },
           )
           return
         }
