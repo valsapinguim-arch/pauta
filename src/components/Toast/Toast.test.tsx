@@ -2,6 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { expectNoA11yViolations } from '@/test/axe'
 import { Toast } from './Toast'
 import { ToastProvider } from './ToastProvider'
 
@@ -56,5 +57,14 @@ describe('Toast', () => {
 
     await user.click(screen.getByRole('button', { name: 'Fechar' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('não tem violações de acessibilidade', async () => {
+    const { container } = render(
+      <ToastProvider>
+        <Toast open onOpenChange={() => {}} title="Há uma versão nova" description="Detalhe" />
+      </ToastProvider>,
+    )
+    await expectNoA11yViolations(container)
   })
 })

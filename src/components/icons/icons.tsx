@@ -155,6 +155,16 @@ export function ChevronLeftIcon(props: IconProps) {
   )
 }
 
+/** Navegação nota a nota por teclado (Tarefa 18, decisão 4) — o SVG da
+ *  pauta (`role="img"`, decisão 3) não é navegável por leitor de ecrã. */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+  )
+}
+
 /** Edição manual (Tarefa 17) — altura por semitom/oitava (decisão 4),
  *  desfazer/refazer (decisão 7). */
 export function ArrowUpIcon(props: IconProps) {

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
+  allPositions,
   changeDuration as changeDurationOp,
   changePitch as changePitchOp,
   deleteNote as deleteNoteOp,
@@ -20,6 +21,13 @@ export interface ScoreEditorApi {
   selection: NotationPosition | null
   selectedElement: NotationElement | null
   select: (position: NotationPosition | null) => void
+  /** Percorre a pauta em ordem de leitura — Tarefa 18, decisão 4: caminho
+   *  por teclado para selecionar uma nota sem depender de clicar no SVG
+   *  (`role="img"`, decisão 3, não é navegável por leitor de ecrã). Sem
+   *  seleção, começa na primeira posição; `selectPrevious` no início ou
+   *  `selectNext` no fim não avança (sem ciclo). */
+  selectNext: () => void
+  selectPrevious: () => void
   changePitch: (semitones: number) => void
   changeDuration: (noteType: NoteType, dots: 0 | 1) => void
   deleteSelected: () => void
@@ -139,6 +147,36 @@ export function useScoreEditor(
     onChange(next)
   }, [document, future, onChange, stopPlayback])
 
+  const selectNext = useCallback(() => {
+    const positions = allPositions(document)
+    if (positions.length === 0) return
+    if (!selection) {
+      setSelection(positions[0] as NotationPosition)
+      return
+    }
+    const index = positions.findIndex(
+      (p) =>
+        p.measureNumber === selection.measureNumber && p.elementIndex === selection.elementIndex,
+    )
+    const next = positions[index + 1]
+    if (next) setSelection(next)
+  }, [document, selection])
+
+  const selectPrevious = useCallback(() => {
+    const positions = allPositions(document)
+    if (positions.length === 0) return
+    if (!selection) {
+      setSelection(positions[0] as NotationPosition)
+      return
+    }
+    const index = positions.findIndex(
+      (p) =>
+        p.measureNumber === selection.measureNumber && p.elementIndex === selection.elementIndex,
+    )
+    const previous = index > 0 ? positions[index - 1] : undefined
+    if (previous) setSelection(previous)
+  }, [document, selection])
+
   const dismissError = useCallback(() => setError(false), [])
 
   const selectedElement = useMemo(
@@ -150,6 +188,8 @@ export function useScoreEditor(
     selection,
     selectedElement,
     select,
+    selectNext,
+    selectPrevious,
     changePitch,
     changeDuration,
     deleteSelected,

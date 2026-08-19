@@ -29,6 +29,13 @@
   gap: var(--space-3);
 }
 
+.noteNav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
 .confidence {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);

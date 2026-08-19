@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ChangeEvent } from 'react'
 import { describe, expect, it } from 'vitest'
+import { expectNoA11yViolations } from '@/test/axe'
 import { Input } from './Input'
 
 describe('Input', () => {
@@ -29,5 +30,10 @@ describe('Input', () => {
   it('cobre o estado desativado', () => {
     render(<Input label="Título" value="" onChange={() => {}} disabled />)
     expect(screen.getByRole('textbox', { name: 'Título' })).toBeDisabled()
+  })
+
+  it('não tem violações de acessibilidade', async () => {
+    const { container } = render(<Input label="Título" value="" onChange={() => {}} />)
+    await expectNoA11yViolations(container)
   })
 })

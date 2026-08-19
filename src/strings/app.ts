@@ -78,6 +78,11 @@ export const processingStage = {
 export const processing = {
   cancel: 'Cancelar',
   progressLabel: 'Progresso da transcrição',
+  /** Anúncio por marcos (Tarefa 18, decisão 2) — 25/50/75%, nunca a cada
+   *  atualização de `progress`; `milestoneReached` compõe com a
+   *  percentagem, `milestoneComplete` é o marco final. */
+  milestoneReached: (percent: number) => `${percent}% concluído`,
+  milestoneComplete: 'Concluído',
 } as const
 
 export const result = {
@@ -199,6 +204,12 @@ export const notation = {
   emptyTitle: 'Nada para desenhar',
   emptyBody: 'A transcrição não teve notas suficientes para desenhar uma pauta.',
 
+  /** Lista textual das notas a pedido (Tarefa 18, decisão 3) — útil a quem
+   *  usa leitor de ecrã e a quem simplesmente quer verificar a transcrição
+   *  sem saber ler pauta. */
+  showNotesList: 'Ver notas em texto',
+  hideNotesList: 'Esconder notas em texto',
+
   decreaseZoom: 'Diminuir o zoom',
   increaseZoom: 'Aumentar o zoom',
 
@@ -237,6 +248,11 @@ export const edit = {
   deleteNote: 'Eliminar nota',
   insertNote: 'Inserir nota',
   closeToolbar: 'Fechar edição',
+
+  /** Navegação nota a nota por teclado (Tarefa 18, decisão 4) — o SVG da
+   *  pauta não é navegável por leitor de ecrã (`role="img"`, decisão 3). */
+  previousNote: 'Nota anterior',
+  nextNote: 'Nota seguinte',
 
   transposeLabel: 'Transpor',
   decreaseTranspose: 'Transpor um semitom abaixo',

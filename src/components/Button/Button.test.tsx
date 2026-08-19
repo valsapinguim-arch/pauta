@@ -2,6 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { expectNoA11yViolations } from '@/test/axe'
 import { Button } from './Button'
 
 describe('Button', () => {
@@ -44,5 +45,10 @@ describe('Button', () => {
   it('respeita um type explícito', () => {
     render(<Button type="submit">Enviar</Button>)
     expect(screen.getByRole('button', { name: 'Enviar' })).toHaveAttribute('type', 'submit')
+  })
+
+  it('não tem violações de acessibilidade', async () => {
+    const { container } = render(<Button>Gravar</Button>)
+    await expectNoA11yViolations(container)
   })
 })

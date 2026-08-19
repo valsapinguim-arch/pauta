@@ -158,6 +158,7 @@ export function IdleView({
         ref={fileInputRef}
         type="file"
         accept="audio/*"
+        aria-label={idle.pickFile}
         className={styles.hiddenInput}
         onChange={onFileInputChange}
       />

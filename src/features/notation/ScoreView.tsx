@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { Alert, IconButton, Spinner } from '@/components'
+import { Alert, Button, IconButton, Spinner } from '@/components'
 import { MinusIcon, PlusIcon } from '@/components/icons'
+import { describeNotes, describeScore } from '@/lib/notation/describe'
 import type { NotationPosition } from '@/lib/notation/edit'
 import type { ScoreDocument } from '@/lib/types'
 import { notation } from '@/strings'
@@ -102,6 +103,7 @@ export function ScoreView({
 }: ScoreViewProps) {
   const [vf, setVf] = useState<VexFlowModule | null>(null)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
+  const [notesListOpen, setNotesListOpen] = useState(false)
   const { ref: viewportRef, width: viewportWidth } = useElementSize<HTMLDivElement>()
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const cursorElRef = useRef<SVGRectElement | null>(null)
@@ -151,6 +153,14 @@ export function ScoreView({
     if (svg) {
       svg.setAttribute('width', String(contentWidth * zoom))
       svg.setAttribute('height', String(totalHeight * zoom))
+
+      // Descrição textual (Tarefa 18, decisão 3) — não há forma de tornar o
+      // desenho do VexFlow navegável por leitor de ecrã, mas `role="img"` +
+      // `aria-label` dá o essencial de imediato. Gerada do mesmo
+      // `scoreDocument` que o VexFlow acabou de desenhar — nunca pode
+      // divergir do que está no ecrã.
+      svg.setAttribute('role', 'img')
+      svg.setAttribute('aria-label', describeScore(scoreDocument))
 
       // Área sensível alargada por elemento (Tarefa 17, decisão 3) — um
       // retângulo invisível, do tamanho de `MIN_TOUCH_TARGET` no mínimo,
@@ -328,6 +338,18 @@ export function ScoreView({
         )}
         <div ref={canvasRef} className={styles.canvas} onClick={handleCanvasClick} />
       </div>
+
+      {/* Lista textual das notas a pedido (Tarefa 18, decisão 3) — não é só
+          para leitor de ecrã: também serve a quem simplesmente não sabe
+          ler pauta e quer verificar a transcrição. */}
+      <Button
+        variant="secondary"
+        aria-expanded={notesListOpen}
+        onClick={() => setNotesListOpen((open) => !open)}
+      >
+        {notesListOpen ? notation.hideNotesList : notation.showNotesList}
+      </Button>
+      {notesListOpen && <p className={styles.notesList}>{describeNotes(scoreDocument)}</p>}
     </div>
   )
 }

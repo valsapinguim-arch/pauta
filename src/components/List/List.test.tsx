@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { expectNoA11yViolations } from '@/test/axe'
 import { List, ListItem } from './List'
 
 describe('List', () => {
@@ -24,5 +25,14 @@ describe('List', () => {
       </List>,
     )
     expect(screen.getByRole('list')).toHaveClass('extra')
+  })
+
+  it('não tem violações de acessibilidade', async () => {
+    const { container } = render(
+      <List aria-label="Transcrições">
+        <ListItem>Item</ListItem>
+      </List>,
+    )
+    await expectNoA11yViolations(container)
   })
 })
