@@ -407,6 +407,39 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
   Dób precisamente para não ter de ajustar a oitava numa fronteira — manter essa restrição ao
   mexer nas tabelas de grafia (`pitchSpelling.ts`).
 
+## Modelo de notação (Tarefa 12)
+
+- `ScoreDocument` (`@/lib/notation/buildScoreDocument.ts`) é a única representação da partitura na
+  app. Renderizador, reprodutor, exportadores e editor consomem este documento — proibido criar uma
+  estrutura paralela "para desenhar" ou "para exportar", e proibido a jusante desta tarefa voltar a
+  ler `NoteEvent[]` ou `QuantizedNote[]`. `useTranscriber` é o último sítio que ainda os vê.
+- `ScoreDocument` é imutável: `buildScoreDocument` devolve um documento congelado
+  (`Object.freeze` recursivo); funções de edição (`applyManualBpm`, `applyManualKey`,
+  `applyTitle`) recebem e devolvem um documento novo, nunca mutam o recebido.
+- `buildScoreDocument` valida sempre a estrutura (`validateScoreDocument.ts`) e falha com
+  `ScoreDocumentValidationError`; proibido devolver um documento inválido ou desativar a validação
+  por performance.
+- Cada compasso do documento soma exatamente `QUANTIZE.MEASURE_TICKS` e cada ligadura `'start'` tem
+  o seu `'stop'` — invariantes verificadas em `validateScoreDocument`, não confiar só no que a
+  Tarefa 10 já garantiu.
+- `metadata.schemaVersion` (`SCHEMA_VERSION`, `@/lib/types.ts`) é obrigatório e incrementa-se em
+  qualquer alteração à estrutura de `ScoreDocument`, com migração correspondente na Tarefa 16.
+- Uma só clave e uma só tonalidade por documento; não introduzir mudanças de clave ou de armação a
+  meio sem atualizar `docs/architecture.md` e todos os consumidores.
+- Não acrescentar campos ao modelo (dinâmica, articulação, letra, múltiplas partes) sem existir
+  código no pipeline que os preencha.
+- `metadata.title` nunca é vazio nem `undefined` — `defaultTitle` gera um por omissão sensato, e
+  `applyTitle` rejeita silenciosamente uma edição em branco (devolve o documento sem alterar) em
+  vez de cair para um título gerado.
+- `defaultTitle`/`buildScoreDocument` nunca leem `new Date()` sem argumento nem qualquer outra
+  fonte não determinística; `createdAt` vem sempre de quem chama (`useTranscriber`, que não é
+  `@/lib`) — é o que mantém `buildScoreDocument` determinístico (mesma entrada → mesmo documento),
+  condição para os testes de fixtures da Tarefa 20.
+- Inventário de componentes alargado para oito (Tarefa 3, decisão 2): `Input` entrou nesta tarefa
+  para a edição do título — o único caso até agora de texto verdadeiramente livre (BPM e tonalidade
+  resolveram-se com `IconButton` porque o espaço de valores é enumerável). Não introduzir um nono
+  componente sem a mesma justificação escrita.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar

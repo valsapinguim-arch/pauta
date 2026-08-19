@@ -119,4 +119,11 @@ export const result = {
   assumedKeyTitle: 'Tonalidade assumida',
   assumedKeyBody:
     'Não foi possível detetar a tonalidade com confiança. Corrige ao lado se não for esta.',
+
+  /** Edição do título e confiança agregada — Tarefa 12, decisão 4 e 5. */
+  titleLabel: 'Título da transcrição',
+  confidenceLabel: 'Confiança geral',
+  confidenceNotes: 'notas',
+  confidenceTempo: 'andamento',
+  confidenceKey: 'tonalidade',
 } as const

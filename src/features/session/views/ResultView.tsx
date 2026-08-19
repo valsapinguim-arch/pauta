@@ -1,4 +1,4 @@
-import { Alert, Button, IconButton, Sheet } from '@/components'
+import { Alert, Button, IconButton, Input, Sheet } from '@/components'
 import { MinusIcon, PlusIcon } from '@/components/icons'
 import type { KeyMode, ScoreDocument } from '@/lib/types'
 import { result } from '@/strings'
@@ -18,6 +18,9 @@ export interface ResultViewProps {
    *  do BPM: esta view só escolhe a próxima tónica/modo, quem chama aplica
    *  (`applyManualKey`, `@/lib/key`). */
   onKeyChange: (tonic: number, mode: KeyMode) => void
+  /** Edição do título (Tarefa 12) — em branco é ignorado por quem aplica
+   *  (`applyTitle`, `@/lib/notation`), nunca por esta view. */
+  onTitleChange: (title: string) => void
 }
 
 /**
@@ -30,17 +33,31 @@ export function ResultView({
   onNewTranscription,
   onBpmChange,
   onKeyChange,
+  onTitleChange,
 }: ResultViewProps) {
   const { bpm, source: tempoSource } = scoreDocument.tempo
   const { tonic, mode, source: keySource } = scoreDocument.key
+  const { confidence } = scoreDocument.metadata
 
   return (
     <div className={styles.container}>
-      <h2 className={styles.title}>{scoreDocument.metadata.title}</h2>
+      <Input
+        className={styles.title}
+        label={result.titleLabel}
+        value={scoreDocument.metadata.title}
+        onChange={(event) => onTitleChange(event.target.value)}
+      />
 
       <Sheet elevated padding="lg" className={styles.score}>
         <ResultPlaceholderScore />
       </Sheet>
+
+      <p className={styles.confidence}>
+        {result.confidenceLabel} {Math.round(confidence.overall * 100)}% ({result.confidenceNotes}{' '}
+        {Math.round(confidence.notes * 100)}%, {result.confidenceTempo}{' '}
+        {Math.round(confidence.tempo * 100)}%, {result.confidenceKey}{' '}
+        {Math.round(confidence.key * 100)}%)
+      </p>
 
       <div className={styles.tempo}>
         <span className={styles.tempoLabel}>{result.tempoLabel}</span>
