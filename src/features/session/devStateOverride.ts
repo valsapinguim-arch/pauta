@@ -1,4 +1,4 @@
-import type { ScoreDocument } from '@/lib/types'
+import type { NoteEvent, ScoreDocument } from '@/lib/types'
 import type { AudioSource, ProcessingStage, SessionState } from './session.types'
 
 /**
@@ -44,6 +44,14 @@ const FAKE_DOCUMENT: ScoreDocument = {
   measures: [],
 }
 
+/** Notas de exemplo, só para a correção manual de BPM (Tarefa 9) ter algo no
+ *  campo `notes` do estado `result` — o mesmo espírito de `FAKE_DOCUMENT`. */
+const FAKE_NOTES: NoteEvent[] = [
+  { pitchMidi: 60, startSec: 0, durationSec: 0.5, amplitude: 0.8 },
+  { pitchMidi: 62, startSec: 0.5, durationSec: 0.5, amplitude: 0.75 },
+  { pitchMidi: 64, startSec: 1, durationSec: 0.5, amplitude: 0.7 },
+]
+
 function fixtureFor(status: string, params: URLSearchParams): SessionState | null {
   switch (status) {
     case 'idle':
@@ -60,8 +68,18 @@ function fixtureFor(status: string, params: URLSearchParams): SessionState | nul
       return { status: 'processing', source: FAKE_SOURCE, stage, progress: 0.4 }
     }
 
-    case 'result':
-      return { status: 'result', document: FAKE_DOCUMENT }
+    case 'result': {
+      // `?state=result&tempo=assumed` — mostra o aviso de BPM assumido
+      // (Tarefa 9, decisão 5) sem precisar de forjar onsets irregulares.
+      const document =
+        params.get('tempo') === 'assumed'
+          ? {
+              ...FAKE_DOCUMENT,
+              tempo: { ...FAKE_DOCUMENT.tempo, confidence: 0, source: 'assumed' as const },
+            }
+          : FAKE_DOCUMENT
+      return { status: 'result', document, notes: FAKE_NOTES }
+    }
 
     case 'error':
       return {

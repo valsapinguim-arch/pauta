@@ -14,9 +14,11 @@ export interface PreprocessAudioApi {
    *  também com o mecanismo `?state=processing` da Tarefa 3, que nunca
    *  passou por aqui). */
   run: (audio: CapturedAudio) => void
-  /** Termina o worker ativo (se houver) e devolve a sessão a `idle` — ver
-   *  Tarefa 7, decisão 7: cancelar é terminar, nunca uma _flag_ verificada a
-   *  meio (a convolução em curso não é interrompível de dentro). */
+  /** Termina o worker ativo (se houver) — não mexe na sessão (ver
+   *  `useTranscriber.cancel`, mesma convenção: quem cancela o pipeline
+   *  inteiro, tipicamente `App.tsx`, é que decide também chamar
+   *  `session.cancel()`, uma única vez, depois de terminar os dois
+   *  workers). */
   cancel: () => void
 }
 
@@ -24,11 +26,15 @@ export interface PreprocessAudioApi {
  * Ponte entre `audio.worker.ts` (Tarefa 6) e a máquina de estados da sessão
  * (Tarefa 1) — mesmo papel que `useRecordingFlow` tem para `useMicrophone`.
  *
- * Sem transcrição real ainda (Tarefa 7): ao terminar, só se regista o
- * resultado e a sessão fica em `processing`, tal como `useRecordingFlow` e
- * `useFilePicker` já deixam ao chegar aqui.
+ * `onPreprocessed` (Tarefa 7) entrega o PCM já mono/22050 Hz/normalizado a
+ * quem transcreve (`useTranscriber.transcribe`) — mesma razão documentada em
+ * `onAudioReady` de `useRecordingFlow`: chamada direta, nunca uma reação a
+ * `session.state`.
  */
-export function usePreprocessAudio(session: SessionApi): PreprocessAudioApi {
+export function usePreprocessAudio(
+  session: SessionApi,
+  onPreprocessed: (audio: CapturedAudio) => void,
+): PreprocessAudioApi {
   const workerRef = useRef<Worker | null>(null)
 
   const terminate = useCallback(() => {
@@ -57,14 +63,15 @@ export function usePreprocessAudio(session: SessionApi): PreprocessAudioApi {
         }
 
         if (message.type === 'result') {
-          // TODO Tarefa 7: entregar { pcm, sampleRate, trimOffsetSamples } à
-          // inferência — por agora só se confirma que o pré-processamento
-          // funciona de ponta a ponta.
+          // TODO Tarefas 9/14: propagar `trimOffsetSamples` até ao
+          // alinhamento rítmico e à reprodução (Tarefa 6, decisão 7) — por
+          // agora só se regista, não há ainda quem o consuma.
           console.warn(
             `[pauta] áudio pré-processado: ${message.pcm.length} amostras a ` +
               `${message.sampleRate} Hz, ${message.trimOffsetSamples} amostras cortadas do início`,
           )
           terminate()
+          onPreprocessed({ pcm: message.pcm, sampleRate: message.sampleRate })
           return
         }
 
@@ -87,13 +94,8 @@ export function usePreprocessAudio(session: SessionApi): PreprocessAudioApi {
       // volta a ser lido depois desta linha.
       worker.postMessage(request, [audio.pcm.buffer])
     },
-    [session, terminate],
+    [session, terminate, onPreprocessed],
   )
 
-  const cancel = useCallback(() => {
-    terminate()
-    session.cancel()
-  }, [terminate, session])
-
-  return { run, cancel }
+  return { run, cancel: terminate }
 }

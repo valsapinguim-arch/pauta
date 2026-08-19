@@ -19,7 +19,20 @@ export default defineConfig({
       filename: 'sw.ts',
       injectManifest: {
         // Ficheiros do modelo (Tarefa 7) vivem em rota própria fora do
-        // precache — ver src/sw.ts. Nada a listar aqui ainda.
+        // precache — ver src/sw.ts (decisão 3: nunca no precache manifest da
+        // shell, ou cada atualização da app obrigaria a descarregar dezenas
+        // de MB outra vez). `public/models/**` é copiado tal e qual para
+        // `dist/models/**`; sem isto o `globPatterns` por omissão do
+        // Workbox (que inclui `.json` e outras extensões comuns) apanhava
+        // `model.json` para dentro do manifest da shell.
+        //
+        // `assets/transcribe.worker-*.js` (Tarefa 7) sai pela mesma razão,
+        // mais uma: o chunk (TensorFlow.js inteiro, ~2 MB compilado)
+        // ultrapassa o limite por omissão do Workbox para o precache
+        // manifest (2 MiB) e faz o build FALHAR se ficar cá dentro — não é
+        // só uma questão de política de cache, é um limite rígido. A rota
+        // própria em `src/sw.ts` cobre este chunk tal como cobre o modelo.
+        globIgnores: ['models/**', 'assets/transcribe.worker-*.js'],
       },
 
       /* Ver Tarefa 2, decisão 5. `injectRegister: 'auto'` deteta que o código

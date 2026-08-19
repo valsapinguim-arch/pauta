@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useReducer } from 'react'
-import type { ScoreDocument } from '@/lib/types'
+import type { NoteEvent, ScoreDocument } from '@/lib/types'
 import { getDevStateOverride } from './devStateOverride'
 import { initialSessionState, sessionReducer } from './session.reducer'
 import type { AudioSource, ProcessingStage, SessionState } from './session.types'
@@ -11,7 +11,7 @@ export interface SessionApi {
   stopRecording: () => void
   startProcessing: (source: AudioSource) => void
   advanceProcessing: (stage: ProcessingStage, progress: number) => void
-  finishProcessing: (document: ScoreDocument) => void
+  finishProcessing: (document: ScoreDocument, notes: NoteEvent[]) => void
   replaceDocument: (document: ScoreDocument) => void
   fail: (code: string, recoverable?: boolean) => void
   cancel: () => void
@@ -56,8 +56,8 @@ export function useSession(): SessionApi {
     dispatch({ type: 'processing/advance', stage, progress })
   }, [])
 
-  const finishProcessing = useCallback((document: ScoreDocument) => {
-    dispatch({ type: 'processing/done', document })
+  const finishProcessing = useCallback((document: ScoreDocument, notes: NoteEvent[]) => {
+    dispatch({ type: 'processing/done', document, notes })
   }, [])
 
   const replaceDocument = useCallback((document: ScoreDocument) => {

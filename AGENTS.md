@@ -31,13 +31,19 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
                      Toast) + icons/ e cx.ts (suporte, fora do inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
-                     partilhada entre workers/worklets e o resto da app (ex.: calculateRms)
+                     partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
+                     /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes) —
+                     nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
+                     (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
   /src/sw.ts       → service worker (injectManifest — Tarefa 2)
-  /public/models/  → modelo Basic Pitch empacotado
+  /public/models/basic-pitch/ → modelo Basic Pitch empacotado (Tarefa 7)
+  /public/models/tfjs-wasm/   → binários WASM do TensorFlow.js (Tarefa 7)
   /public/*.png, /public/favicon.ico, /public/*.svg → ícones PWA (gerados, Tarefa 2)
+  /scripts/        → utilitários de linha de comandos, corridos à mão (ex.: copy-model-assets.js,
+                     Tarefa 7) — nunca parte do build nem do bundle da app
   /docs/           → arquitetura
   /prompts/        → plano de desenvolvimento
   ```
@@ -212,8 +218,10 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   transcrição (Tarefa 7), que carrega um modelo caro e é mantido vivo — não confundir os dois
   ciclos de vida.
 - Cancelar durante `processing` chama `worker.terminate()` (nunca uma _flag_ verificada a meio: a
-  convolução em curso não é interrompível de dentro) e só depois `session.cancel()`
-  (`usePreprocessAudio.cancel`, ligado a `ProcessingView.onCancel` em `App.tsx`).
+  convolução em curso não é interrompível de dentro). `usePreprocessAudio.cancel()` só termina o
+  worker de áudio — não mexe na sessão (ver Tarefa 7: há dois workers no pipeline agora, e
+  `session.cancel()` só pode ser chamado uma vez; `App.tsx` é que termina os dois e só depois cancela
+  a sessão).
 - O PCM capturado (Tarefas 4/5) NUNCA vive no estado da sessão (`SessionState`) — é entregue
   diretamente de `useRecordingFlow`/`useFilePicker` a `usePreprocessAudio.run()` por chamada direta,
   não por um campo em `session.state`. Motivo: o mecanismo `?state=processing` (Tarefa 3) força esse
@@ -221,6 +229,155 @@ import.meta.url)` — este último não passa o ficheiro pelo pipeline de build 
   de desenvolvimento forjado (com PCM vazio) seria um efeito secundário invisível e errado desse
   mecanismo. Não reintroduzir `audio`/`pcm` em `SessionState`/`SessionAction` para "simplificar" a
   passagem de dados — é uma armadilha já considerada e rejeitada.
+
+## Motor de transcrição (Tarefa 7)
+
+- TensorFlow.js e `@spotify/basic-pitch` só podem ser importados por `src/workers/transcribe.worker.ts`;
+  proibido importá-los na thread principal ou em qualquer outro módulo (incluindo o barrel
+  `@/features/transcribe/index.ts` — nunca reexportar de lá algo que force esse import, nem sequer um
+  valor como `MODEL_THRESHOLDS`; ver a nota abaixo sobre porque o protocolo de mensagens vive num
+  ficheiro à parte). Mantê-los confinados é o que permite testar o resto do pipeline sem modelo.
+- **`@spotify/basic-pitch` traz a sua própria versão de `@tensorflow/tfjs` (`^3.2.0`, 2021).** Sem um
+  override a forçar a árvore inteira a partilhar a nossa versão (`pnpm-workspace.yaml`, campo
+  `overrides`), ficam DUAS instâncias de tfjs no mesmo worker — uma delas nunca vê o backend
+  registado pela outra (`tf.setBackend('wasm')` numa instância, `model.execute()` a correr contra o
+  registo da outra) e a inferência falha com "backend not found", só em runtime, nunca no build nem
+  no typecheck. Confirmar com `pnpm why @tensorflow/tfjs` que só aparece UMA versão sempre que esta
+  dependência ou o override mudarem.
+- A saída do modelo é convertida para `NoteEvent[]` (`@/lib/types.ts`) dentro do worker; nenhuma
+  estrutura do TensorFlow.js (tensores, `GraphModel`) nem do `@spotify/basic-pitch`
+  (`NoteEventTime`, `pitchBends`) atravessa a fronteira do worker.
+- O modelo (`public/models/basic-pitch/`) e os binários WASM (`public/models/tfjs-wasm/`) são
+  servidos de `/models/` na própria origem — nunca de CDN. São copiados de `node_modules` para
+  `public/` por `pnpm copy-model-assets` (`scripts/copy-model-assets.js`), corrido à mão e
+  versionado — não regenerado a cada build (mesmo padrão de `pnpm generate-pwa-assets`, Tarefa 2).
+  Depois de atualizar `@spotify/basic-pitch` ou `@tensorflow/tfjs-backend-wasm`, correr o script de
+  novo e rever o diff dos binários.
+- `public/models/**` fica sempre FORA do precache manifest da shell (`injectManifest.globIgnores` em
+  `vite.config.ts`) — tem cache própria e dedicada em `src/sw.ts` desde a Tarefa 2
+  (`pauta-model-v1`, `StaleWhileRevalidate`, rota `/models/**`). Uma atualização da app nunca deve
+  obrigar a descarregar o modelo outra vez.
+- O worker de transcrição é reutilizado entre transcrições e o modelo carrega uma vez por sessão
+  (`basicPitch`, estado de módulo em `transcribe.worker.ts`) — proibido recriar o worker por
+  transcrição. É o oposto do worker de áudio (Tarefa 6), descartável; não confundir os dois ciclos
+  de vida.
+- Cancelar uma transcrição faz `worker.terminate()` (`useTranscriber.cancel`, que não mexe na
+  sessão — ver a nota da Tarefa 6 acima); a próxima `transcribe()` recria o worker e recarrega o
+  modelo. Proibido cancelamento por _flag_ verificada entre janelas — a inferência de uma janela em
+  curso não é interrompível de dentro.
+- **`BasicPitch.evaluateModel` (dentro do pacote `@spotify/basic-pitch`) não liberta os tensores que
+  cria a cada janela de 2 s.** Não é algo que se possa corrigir editando `node_modules`. Contornado
+  envolvendo cada chamada com `tf.engine().startScope()`/`endScope()` — os primitivos por baixo de
+  `tf.tidy()`, que funcionam através de `await`s (`tidy()` exige uma função síncrona, incompatível
+  com `evaluateModel`). Sem isto, memória cresce a cada transcrição dentro do mesmo worker
+  reutilizado. Qualquer chamada nova a `evaluateModel` (ou a outro método do `BasicPitch` que corra
+  o modelo) tem de ficar dentro do mesmo par `startScope`/`endScope`.
+- Limiares do modelo (`MODEL_THRESHOLDS` em `transcribe.worker.ts`: `ONSET_THRESHOLD`,
+  `FRAME_THRESHOLD`, `MIN_NOTE_LENGTH_MS`) vivem só ali, marcados como provisórios até afinação com
+  áudio real (Tarefa 13); proibido passar valores literais nas chamadas a `outputToNotesPoly`.
+- Backend de execução: tenta `wasm` (SIMD/threads negociados automaticamente por `setWasmPaths`, sem
+  deteção manual), cai para `webgl` só se o WASM falhar a inicializar. Nunca WebGPU nesta fase — só
+  reavaliar com medições documentadas (Tarefa 19). Cross-origin isolation (necessária para threads no
+  WASM) não está configurada — sem os cabeçalhos COOP/COEP no _hosting_, o backend usa
+  automaticamente a variante só-SIMD; isto é aceitável e não é um bug a corrigir aqui.
+- O protocolo de mensagens do worker vive em `src/workers/transcribe.worker.types.ts`, um ficheiro só
+  de tipos — mesmo padrão e mesma razão da Tarefa 6 (`audio.worker.types.ts`): evita que
+  `@/features/transcribe/useTranscriber` (lib `DOM`) arraste o corpo do worker (lib `WebWorker`,
+  TensorFlow.js incluído) para o programa errado.
+- A primeira transcrição de uma sessão mostra sempre a etapa `preparing-model` (distinta de
+  `transcribing`) — o utilizador tem de perceber que a espera de descarregar o modelo é só desta vez.
+  O progresso mostrado é real nas duas etapas (`preparing-model`: bytes do modelo descarregados via
+  `tf.loadGraphModel`'s `onProgress`; `transcribing`: fração de janelas de 2 s inferidas) — não há
+  barra indeterminada em `ProcessingView` desde esta tarefa.
+
+## Pós-processamento de notas (Tarefa 8)
+
+- A remoção de harmónicos (`removeHarmonics`) corre sempre ANTES da redução a monofonia
+  (`reduceToMonophonic`) — pela ordem inversa a pauta sai uma oitava acima em passagens inteiras. A
+  ordem de `cleanNotes` é fixa: `sortByOnset → mergeFragmented → removeHarmonics →
+reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfidence`. Não reordenar.
+- Em notas simultâneas mantém-se sempre a mais aguda (`reduceToMonophonic`); proibido mudar o
+  critério para amplitude ou duração sem justificação medida contra áudio real. As notas descartadas
+  são-no por inteiro — nunca cortadas, aparadas ou ajustadas.
+- Filtros de amplitude (`filterByAmplitude`) são sempre relativos à amplitude MEDIANA das notas
+  detetadas; proibido limiar absoluto — trata mal os dois extremos (elimina tudo numa gravação
+  fraca, nada numa forte).
+- Proibido inventar, interpolar ou "corrigir" notas em qualquer função de `@/lib/notes`: não se
+  preenchem lacunas, não se ajustam alturas a uma escala, não se suavizam saltos. O que o modelo não
+  detetou não existe — isto é diferente da grafia segundo a tonalidade (Tarefa 11), que decide COMO
+  escrever uma altura já detetada, nunca inventa altura nenhuma.
+- `computeConfidence` é só informativa — nunca bloqueia o pipeline nem impede o utilizador de ver o
+  resultado, seja qual for o valor. `0` só acontece com entrada vazia ou quando a limpeza descarta
+  tudo; não confundir com um erro.
+- Constantes de limpeza vivem exclusivamente em `NOTE_CLEANUP` (`@/lib/notes/constants.ts`),
+  marcadas como provisórias até afinação com áudio real (Tarefa 13) — proibido valor literal dentro
+  das funções de `@/lib/notes`. Interagem com `MODEL_THRESHOLDS` (Tarefa 7): apertar um permite
+  aliviar o outro; afinar os dois em conjunto.
+- Funções de `@/lib/notes` são puras e testadas com notas escritas à mão — nunca precisam de áudio
+  nem do modelo para serem exercitadas. Cada ficheiro de função tem o seu próprio teste (mesma
+  convenção de `@/lib/audio`); sem exceções.
+- `cleanNotes` corre na thread principal (dentro de `useTranscriber`), não no worker de transcrição:
+  é lógica pura e barata, e o worker existe só para o que precisa mesmo de lá estar — o modelo
+  (Tarefa 7, decisão 9).
+
+## Deteção de tempo (Tarefa 9)
+
+- A deteção de tempo trabalha exclusivamente sobre `NoteEvent[]`; proibido reprocessar o PCM em
+  `@/lib/tempo` — o áudio não atravessa esta fronteira.
+- O compasso é sempre 4/4 nesta fase; não implementar deteção de compasso sem atualizar
+  `docs/architecture.md` e a Tarefa 10 (que assume compassos de 4 tempos).
+- Quando a confiança do tempo é baixa (`TEMPO.MIN_CONFIDENCE` em `@/lib/tempo/constants.ts`),
+  assume-se `TEMPO.DEFAULT_BPM` (120) com `source: 'assumed'` e avisa-se o utilizador
+  (`ResultView`, quando `tempo.source === 'assumed'`); proibido apresentar um BPM inventado como
+  detetado.
+- O BPM é sempre editável pelo utilizador (`ResultView`, controlo +/- sobre `IconButton` — não um
+  `Input`, ver nota abaixo) e alterá-lo recalcula apenas de `TempoMap` para a frente
+  (`applyManualBpm`, `@/lib/tempo/applyManualBpm.ts`) — proibido repetir a inferência do modelo
+  quando só o tempo muda.
+- `NoteEvent[]` limpo permanece no estado da sessão (`SessionState`, caso `result`, campo `notes`)
+  depois de consumido, precisamente para permitir esse recálculo; não descartar nem remover este
+  campo ao tocar em `session.reducer.ts`.
+- `TempoMap` tem sempre `source` preenchido (`detected` | `assumed` | `manual`) — a proveniência do
+  andamento é informação que o utilizador vê.
+- O andamento é constante por peça; se algum dia houver variação, estende-se `TempoMap` com
+  secções em vez de mudar as assinaturas a jusante.
+- O controlo de BPM em `ResultView` usa um par de `IconButton` (+/-), não um `Input` — a Tarefa 3
+  fechou o inventário de componentes em sete e este não introduz um oitavo; só reconsiderar com
+  justificação escrita numa tarefa futura que precise mesmo de entrada de texto livre.
+- `applyManualBpm` (`@/lib/tempo/applyManualBpm.ts`) só mexe em `tempo` e em
+  `metadata.confidence.tempo` — ainda não existe quantização nem notação (Tarefas 10/12) para
+  recalcular a partir daqui; quando existirem, é esta função que passa a reconstruir `measures`.
+
+## Quantização rítmica (Tarefa 10)
+
+- Durações internas de notação são sempre inteiros em ticks (480 por semínima, `TICKS_PER_QUARTER`
+  em `@/lib/types.ts`); proibido representar durações de notação em segundos ou em `float` — a
+  validação de compassos em `quantize` (`@/lib/quantize/quantize.ts`) depende de aritmética exata.
+- A grelha de quantização é binária até 1/16 (`QUANTIZE.MIN_SUBDIVISION_TICKS`,
+  `@/lib/quantize/constants.ts`); não introduzir tercinas ou quinálteras sem atualizar
+  `docs/architecture.md`, a Tarefa 12 e os exportadores da Tarefa 15.
+- Sobreposições resolvem-se encurtando a nota anterior (`resolveOverlaps.ts`); proibido deslocar o
+  início de uma nota para resolver uma sobreposição — os inícios são a informação rítmica a
+  preservar.
+- Uma nota nunca é eliminada na quantização; se for demasiado curta, é promovida à subdivisão
+  mínima (`nearestNoteDuration`/`largestNoteDurationAtMost`, `@/lib/quantize/noteDurations.ts`,
+  que nunca devolvem nada mais curto do que uma semicorchea).
+- Notas que atravessam a barra de compasso são sempre divididas e ligadas com ligadura de
+  prolongação (`splitAcrossBarlines.ts`); proibido truncar ou deixar atravessar.
+- Todo o compasso soma exatamente `QUANTIZE.MEASURE_TICKS`, incluindo o último (preenchido com
+  pausas por `padFinalMeasure.ts`). `quantize()` valida isto explicitamente e lança um erro se
+  falhar — não desativar nem capturar essa exceção para "continuar mesmo assim".
+- Pausas são decompostas segundo a tabela canónica de figuras (`NOTE_DURATIONS`,
+  `noteDurations.ts`) alinhada aos limites de tempo E de compasso (`decomposeRestTicks.ts`);
+  proibido gerar uma pausa única que ignore essa divisão.
+- Cada `QuantizedNote` mantém `sourceIndex` para a `NoteEvent` de origem; partes de uma nota ligada
+  partilham o mesmo `sourceIndex` e são sempre tratadas em conjunto pela reprodução (Tarefa 14) e
+  pela edição manual (Tarefa 17).
+- O compasso é sempre 4/4 (`QUANTIZE.BEAT_TICKS`/`MEASURE_TICKS` são constantes fixas, não
+  derivadas de um `TimeSignature` recebido) — mesma limitação da Tarefa 9, revista em conjunto se
+  algum dia mudar.
+- Quando o resultado parecer ritmicamente absurdo, suspeitar primeiro do BPM (Tarefa 9), não desta
+  lógica — a quantização está limitada pela qualidade do `TempoMap` que recebe.
 
 ## PWA e service worker (Tarefa 2)
 

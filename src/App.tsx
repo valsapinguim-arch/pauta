@@ -12,8 +12,9 @@ import {
   useSession,
 } from '@/features/session'
 import type { SessionApi, SessionState } from '@/features/session'
-import { usePreprocessAudio } from '@/features/transcribe'
-import type { PreprocessAudioApi } from '@/features/transcribe'
+import { usePreprocessAudio, useTranscriber } from '@/features/transcribe'
+import type { PreprocessAudioApi, TranscriberApi } from '@/features/transcribe'
+import { applyManualBpm } from '@/lib/tempo/applyManualBpm'
 import { app, install, update } from '@/strings'
 import styles from './App.module.css'
 
@@ -27,7 +28,8 @@ function assertNever(value: never): never {
 export function App() {
   const session = useSession()
   const { state } = session
-  const preprocess = usePreprocessAudio(session)
+  const transcriber = useTranscriber(session)
+  const preprocess = usePreprocessAudio(session, transcriber.transcribe)
   const recording = useRecordingFlow(session, preprocess.run)
   const filePicker = useFilePicker(session, preprocess.run)
 
@@ -46,7 +48,7 @@ export function App() {
       </header>
 
       <div className={styles.stage}>
-        {renderStage(state, session, recording, filePicker, preprocess)}
+        {renderStage(state, session, recording, filePicker, preprocess, transcriber)}
       </div>
 
       <Toast
@@ -92,6 +94,7 @@ function renderStage(
   recording: RecordingFlowApi,
   filePicker: FilePickerApi,
   preprocess: PreprocessAudioApi,
+  transcriber: TranscriberApi,
 ) {
   switch (state.status) {
     case 'idle':
@@ -130,12 +133,25 @@ function renderStage(
         <ProcessingView
           stage={state.stage}
           progress={state.progress}
-          onCancel={preprocess.cancel}
+          onCancel={() => {
+            // Termina os dois workers do pipeline antes de tocar na sessão
+            // — uma só vez, nunca duas (cada `cancel()` destes já não mexe
+            // em `session`, ver Tarefas 6 e 7).
+            preprocess.cancel()
+            transcriber.cancel()
+            session.cancel()
+          }}
         />
       )
 
     case 'result':
-      return <ResultView document={state.document} onNewTranscription={session.reset} />
+      return (
+        <ResultView
+          document={state.document}
+          onNewTranscription={session.reset}
+          onBpmChange={(bpm) => session.replaceDocument(applyManualBpm(state.document, bpm))}
+        />
+      )
 
     case 'error':
       return (

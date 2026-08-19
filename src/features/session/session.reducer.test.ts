@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ScoreDocument } from '@/lib/types'
+import type { NoteEvent, ScoreDocument } from '@/lib/types'
 import { initialSessionState, sessionReducer } from './session.reducer'
 import type { AudioSource, SessionAction, SessionState } from './session.types'
 
@@ -28,12 +28,13 @@ const doc: ScoreDocument = {
 
 const mic: AudioSource = { kind: 'microphone' }
 const file: AudioSource = { kind: 'file', name: 'trecho.mp3' }
+const notes: NoteEvent[] = [{ pitchMidi: 60, startSec: 0, durationSec: 0.3, amplitude: 0.5 }]
 
 const states = {
   idle: { status: 'idle' },
   recording: { status: 'recording', source: mic, level: 0.4, elapsedMs: 1200 },
   processing: { status: 'processing', source: mic, stage: 'transcribing', progress: 0.5 },
-  result: { status: 'result', document: doc },
+  result: { status: 'result', document: doc, notes },
   error: { status: 'error', code: 'permission-denied', recoverable: true },
 } satisfies Record<string, SessionState>
 
@@ -43,7 +44,7 @@ const actions = {
   'recording/stop': { type: 'recording/stop' },
   'processing/start': { type: 'processing/start', source: file },
   'processing/advance': { type: 'processing/advance', stage: 'analysing', progress: 0.9 },
-  'processing/done': { type: 'processing/done', document: doc },
+  'processing/done': { type: 'processing/done', document: doc, notes },
   'result/replace': { type: 'result/replace', document: doc },
   cancel: { type: 'cancel' },
 } satisfies Record<string, SessionAction>
@@ -195,6 +196,12 @@ describe('sessionReducer', () => {
     it('gravar de novo a partir do resultado descarta o documento anterior', () => {
       const after = sessionReducer(states.result, actions['recording/start'])
       expect(after).toEqual({ status: 'recording', source: mic, level: 0, elapsedMs: 0 })
+    })
+
+    it('substituir o documento (correção de BPM) preserva as notas limpas guardadas', () => {
+      const otherDoc: ScoreDocument = { ...doc, tempo: { ...doc.tempo, bpm: 140 } }
+      const after = sessionReducer(states.result, { type: 'result/replace', document: otherDoc })
+      expect(after).toEqual({ status: 'result', document: otherDoc, notes })
     })
   })
 

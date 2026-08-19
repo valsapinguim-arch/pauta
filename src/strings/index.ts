@@ -8,6 +8,7 @@ export {
   isKnownErrorCode,
   microphoneErrors,
   preprocessErrors,
+  transcribeErrors,
 } from './errors'
 export type { ErrorMessage } from './errors'
 export { install, update } from './pwa'
