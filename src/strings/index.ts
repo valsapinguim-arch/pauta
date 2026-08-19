@@ -1,5 +1,6 @@
 export {
   app,
+  edit,
   exportPanel,
   idle,
   library,

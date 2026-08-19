@@ -210,3 +210,43 @@ export const notation = {
   lowConfidenceTempo: 'O andamento pode estar errado — corrige-o abaixo, junto ao BPM.',
   lowConfidenceKey: 'A tonalidade pode estar errada — corrige-a abaixo.',
 } as const
+
+/** Edição manual (Tarefa 17) — `EditToolbar` e os controlos de
+ *  transposição/desfazer em `ResultView`. Só cinco operações (decisão 1):
+ *  altura, duração, eliminar, inserir, transpor — nada de vozes, acordes,
+ *  dinâmica ou articulações aqui. */
+export const edit = {
+  pitchLabel: 'Altura',
+  decreaseSemitone: 'Descer um semitom',
+  increaseSemitone: 'Subir um semitom',
+  decreaseOctave: 'Descer uma oitava',
+  increaseOctave: 'Subir uma oitava',
+
+  durationLabel: 'Duração',
+  /** Nomes pt-PT das figuras (Tarefa 10) — só usados aqui; o resto da app
+   *  nunca mostrou a duração como texto até agora. */
+  noteTypeNames: {
+    whole: 'Semibreve',
+    half: 'Mínima',
+    quarter: 'Semínima',
+    eighth: 'Colcheia',
+    sixteenth: 'Semicolcheia',
+  },
+  toggleDot: 'Alternar ponto de aumento',
+
+  deleteNote: 'Eliminar nota',
+  insertNote: 'Inserir nota',
+  closeToolbar: 'Fechar edição',
+
+  transposeLabel: 'Transpor',
+  decreaseTranspose: 'Transpor um semitom abaixo',
+  increaseTranspose: 'Transpor um semitom acima',
+
+  undo: 'Desfazer',
+  redo: 'Refazer',
+
+  /** Decisão 8: uma edição que invalidaria o documento é recusada — este é
+   *  o aviso, não uma mensagem genérica de erro. */
+  errorTitle: 'Não foi possível aplicar a edição',
+  errorBody: 'O documento ficaria inválido — a alteração não foi guardada.',
+} as const
