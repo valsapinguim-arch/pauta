@@ -9,13 +9,22 @@
 }
 
 .title {
+  width: 100%;
+  max-width: 24rem;
   font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
   text-align: center;
 }
 
 .score {
   width: 100%;
   max-width: 32rem;
+}
+
+.confidence {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 .tempo {

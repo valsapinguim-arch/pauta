@@ -379,6 +379,67 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
 - Quando o resultado parecer ritmicamente absurdo, suspeitar primeiro do BPM (Tarefa 9), não desta
   lógica — a quantização está limitada pela qualidade do `TempoMap` que recebe.
 
+## Tonalidade e grafia (Tarefa 11)
+
+- A grafia enarmónica de uma nota segue sempre a armação detetada (`spellPitch`,
+  `@/lib/key/spellPitch.ts`); proibido escrever sempre sustenidos ou aplicar uma regra fixa
+  independente da tonalidade.
+- O histograma de classes de altura (`pitchClassHistogram.ts`) é ponderado por duração, nunca por
+  contagem de notas.
+- Acidentes (`applyAccidentals.ts`) escrevem-se apenas quando diferem da armação (ou do último
+  acidente já em vigor nessa posição, nesse compasso) e valem até ao fim do compasso; proibido
+  repetir o acidente em cada nota alterada do mesmo compasso.
+- Quando a confiança da tonalidade é baixa (`KEY.MIN_CONFIDENCE`) ou há poucas notas
+  (`KEY.MIN_NOTES_FOR_ESTIMATE`, `@/lib/key/constants.ts`) assume-se dó maior com `source:
+'assumed'` e avisa-se o utilizador (`ResultView`, quando `key.source === 'assumed'`); proibido
+  apresentar uma tonalidade fraca como detetada.
+- A tonalidade é corrigível pelo utilizador (`ResultView`, controlo de tónica/modo) e alterá-la
+  refaz apenas a grafia e a notação (`applyManualKey`, `@/lib/key/applyManualKey.ts`) — nunca a
+  inferência nem a quantização.
+- Uma só tonalidade por peça; não implementar deteção de modulação sem atualizar
+  `docs/architecture.md` e a Tarefa 12.
+- A notação é sempre em alturas de concerto; proibido aplicar transposição automática por
+  instrumento.
+- Os perfis de tonalidade (`MAJOR_KEY_PROFILE`/`MINOR_KEY_PROFILE`, `@/lib/key/keyProfiles.ts`) são
+  dados de Krumhansl-Schmuckler (1982), com a fonte citada no ficheiro; proibido afinar os valores
+  por tentativa e erro.
+- Convenção de oitavas: dó central é MIDI 60 e escreve-se C4. `spellPitch` nunca escreve Si# nem
+  Dób precisamente para não ter de ajustar a oitava numa fronteira — manter essa restrição ao
+  mexer nas tabelas de grafia (`pitchSpelling.ts`).
+
+## Modelo de notação (Tarefa 12)
+
+- `ScoreDocument` (`@/lib/notation/buildScoreDocument.ts`) é a única representação da partitura na
+  app. Renderizador, reprodutor, exportadores e editor consomem este documento — proibido criar uma
+  estrutura paralela "para desenhar" ou "para exportar", e proibido a jusante desta tarefa voltar a
+  ler `NoteEvent[]` ou `QuantizedNote[]`. `useTranscriber` é o último sítio que ainda os vê.
+- `ScoreDocument` é imutável: `buildScoreDocument` devolve um documento congelado
+  (`Object.freeze` recursivo); funções de edição (`applyManualBpm`, `applyManualKey`,
+  `applyTitle`) recebem e devolvem um documento novo, nunca mutam o recebido.
+- `buildScoreDocument` valida sempre a estrutura (`validateScoreDocument.ts`) e falha com
+  `ScoreDocumentValidationError`; proibido devolver um documento inválido ou desativar a validação
+  por performance.
+- Cada compasso do documento soma exatamente `QUANTIZE.MEASURE_TICKS` e cada ligadura `'start'` tem
+  o seu `'stop'` — invariantes verificadas em `validateScoreDocument`, não confiar só no que a
+  Tarefa 10 já garantiu.
+- `metadata.schemaVersion` (`SCHEMA_VERSION`, `@/lib/types.ts`) é obrigatório e incrementa-se em
+  qualquer alteração à estrutura de `ScoreDocument`, com migração correspondente na Tarefa 16.
+- Uma só clave e uma só tonalidade por documento; não introduzir mudanças de clave ou de armação a
+  meio sem atualizar `docs/architecture.md` e todos os consumidores.
+- Não acrescentar campos ao modelo (dinâmica, articulação, letra, múltiplas partes) sem existir
+  código no pipeline que os preencha.
+- `metadata.title` nunca é vazio nem `undefined` — `defaultTitle` gera um por omissão sensato, e
+  `applyTitle` rejeita silenciosamente uma edição em branco (devolve o documento sem alterar) em
+  vez de cair para um título gerado.
+- `defaultTitle`/`buildScoreDocument` nunca leem `new Date()` sem argumento nem qualquer outra
+  fonte não determinística; `createdAt` vem sempre de quem chama (`useTranscriber`, que não é
+  `@/lib`) — é o que mantém `buildScoreDocument` determinístico (mesma entrada → mesmo documento),
+  condição para os testes de fixtures da Tarefa 20.
+- Inventário de componentes alargado para oito (Tarefa 3, decisão 2): `Input` entrou nesta tarefa
+  para a edição do título — o único caso até agora de texto verdadeiramente livre (BPM e tonalidade
+  resolveram-se com `IconButton` porque o espaço de valores é enumerável). Não introduzir um nono
+  componente sem a mesma justificação escrita.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar

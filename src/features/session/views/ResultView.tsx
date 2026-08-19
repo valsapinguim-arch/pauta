@@ -1,6 +1,6 @@
-import { Alert, Button, IconButton, Sheet } from '@/components'
+import { Alert, Button, IconButton, Input, Sheet } from '@/components'
 import { MinusIcon, PlusIcon } from '@/components/icons'
-import type { ScoreDocument } from '@/lib/types'
+import type { KeyMode, ScoreDocument } from '@/lib/types'
 import { result } from '@/strings'
 import { ResultPlaceholderScore } from './ResultPlaceholderScore'
 import styles from './ResultView.module.css'
@@ -14,6 +14,13 @@ export interface ResultViewProps {
    *  clampado por quem chama (`applyManualBpm`, `@/lib/tempo`); esta view só
    *  incrementa/decrementa e mostra o resultado, nunca recalcula sozinha. */
   onBpmChange: (bpm: number) => void
+  /** Correção manual da tonalidade (Tarefa 11, decisão 6) — mesmo espírito
+   *  do BPM: esta view só escolhe a próxima tónica/modo, quem chama aplica
+   *  (`applyManualKey`, `@/lib/key`). */
+  onKeyChange: (tonic: number, mode: KeyMode) => void
+  /** Edição do título (Tarefa 12) — em branco é ignorado por quem aplica
+   *  (`applyTitle`, `@/lib/notation`), nunca por esta view. */
+  onTitleChange: (title: string) => void
 }
 
 /**
@@ -25,16 +32,32 @@ export function ResultView({
   document: scoreDocument,
   onNewTranscription,
   onBpmChange,
+  onKeyChange,
+  onTitleChange,
 }: ResultViewProps) {
-  const { bpm, source } = scoreDocument.tempo
+  const { bpm, source: tempoSource } = scoreDocument.tempo
+  const { tonic, mode, source: keySource } = scoreDocument.key
+  const { confidence } = scoreDocument.metadata
 
   return (
     <div className={styles.container}>
-      <h2 className={styles.title}>{scoreDocument.metadata.title}</h2>
+      <Input
+        className={styles.title}
+        label={result.titleLabel}
+        value={scoreDocument.metadata.title}
+        onChange={(event) => onTitleChange(event.target.value)}
+      />
 
       <Sheet elevated padding="lg" className={styles.score}>
         <ResultPlaceholderScore />
       </Sheet>
+
+      <p className={styles.confidence}>
+        {result.confidenceLabel} {Math.round(confidence.overall * 100)}% ({result.confidenceNotes}{' '}
+        {Math.round(confidence.notes * 100)}%, {result.confidenceTempo}{' '}
+        {Math.round(confidence.tempo * 100)}%, {result.confidenceKey}{' '}
+        {Math.round(confidence.key * 100)}%)
+      </p>
 
       <div className={styles.tempo}>
         <span className={styles.tempoLabel}>{result.tempoLabel}</span>
@@ -57,9 +80,42 @@ export function ResultView({
         </div>
       </div>
 
-      {source === 'assumed' && (
+      {tempoSource === 'assumed' && (
         <Alert tone="info" title={result.assumedTempoTitle}>
           {result.assumedTempoBody}
+        </Alert>
+      )}
+
+      <div className={styles.tempo}>
+        <span className={styles.tempoLabel}>{result.keyLabel}</span>
+        <div className={styles.tempoControl}>
+          <IconButton
+            icon={<MinusIcon />}
+            label={result.decreaseTonic}
+            size="sm"
+            onClick={() => onKeyChange((tonic + 11) % 12, mode)}
+          />
+          <span className={styles.tempoValue}>
+            {result.noteNames[tonic]} {result.modeLabels[mode]}
+          </span>
+          <IconButton
+            icon={<PlusIcon />}
+            label={result.increaseTonic}
+            size="sm"
+            onClick={() => onKeyChange((tonic + 1) % 12, mode)}
+          />
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => onKeyChange(tonic, mode === 'major' ? 'minor' : 'major')}
+        >
+          {result.toggleMode}
+        </Button>
+      </div>
+
+      {keySource === 'assumed' && (
+        <Alert tone="info" title={result.assumedKeyTitle}>
+          {result.assumedKeyBody}
         </Alert>
       )}
 

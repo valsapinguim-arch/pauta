@@ -17,6 +17,11 @@
  *  ticks do MIDI (Tarefa 15), o que elimina conversões na exportação. */
 export const TICKS_PER_QUARTER = 480
 
+/** Versão da estrutura de `ScoreDocument` (Tarefa 12, decisão 8) — incrementa
+ *  em qualquer alteração à forma do documento, com migração correspondente
+ *  na Tarefa 16 (persistência em IndexedDB). */
+export const SCHEMA_VERSION = 1
+
 /** Proveniência de um valor analisado. O utilizador vê isto: um andamento
  *  assumido nunca é apresentado como detetado (Tarefas 9 e 11). */
 export type AnalysisSource = 'detected' | 'assumed' | 'manual'

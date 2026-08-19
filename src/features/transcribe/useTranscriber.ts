@@ -1,6 +1,9 @@
 import { useCallback, useRef } from 'react'
 import type { SessionApi } from '@/features/session'
+import { analyzeKey } from '@/lib/key/analyzeKey'
 import { cleanNotes } from '@/lib/notes/cleanNotes'
+import { buildScoreDocument } from '@/lib/notation/buildScoreDocument'
+import { defaultTitle } from '@/lib/notation/defaultTitle'
 import { quantize } from '@/lib/quantize/quantize'
 import { buildTempoMap } from '@/lib/tempo/buildTempoMap'
 import type { CapturedAudio } from '@/lib/types'
@@ -34,9 +37,11 @@ export interface TranscriberApi {
  * precisa mesmo de correr lá — o modelo (Tarefa 7, decisão 9: "todo o resto
  * do pipeline trabalha sobre um tipo próprio").
  *
- * Sem pauta real ainda (Tarefa 9+): ao terminar, só se regista o resultado
- * limpo e a sessão fica em `processing`, tal como as Tarefas 4-7 já deixam
- * ao chegar aqui.
+ * Fecha o pipeline (Tarefa 12): `notas → tempo → quantização → tonalidade →
+ * ScoreDocument`, todo em `@/lib`, corre aqui na thread principal a seguir
+ * ao resultado do worker, terminando em `session.finishProcessing`, que
+ * transita a sessão para `result` pela primeira vez com um documento real
+ * (não o fixture de `?state=result`, Tarefa 3).
  */
 export function useTranscriber(session: SessionApi): TranscriberApi {
   const workerRef = useRef<Worker | null>(null)
@@ -74,18 +79,40 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
           const { notes, confidence } = cleanNotes(message.notes)
           const tempoMap = buildTempoMap(notes)
           const { notes: quantized, rhythmConfidence } = quantize(notes, tempoMap)
-          // TODO Tarefa 11: seguir para a tonalidade (armação de clave,
-          // grafia de cada nota) — por agora só se confirma que a
-          // quantização rítmica funciona de ponta a ponta. O worker persiste
-          // (decisão 4 da Tarefa 7): não terminar aqui.
-          console.warn(
-            `[pauta] notas limpas: ${notes.length} de ${message.notes.length} originais, ` +
-              `confiança ${confidence.toFixed(2)}; tempo ${tempoMap.bpm.toFixed(0)} BPM ` +
-              `(${tempoMap.source}, confiança ${tempoMap.confidence.toFixed(2)}); ` +
-              `${quantized.length} figuras quantizadas, confiança rítmica ` +
-              `${rhythmConfidence.toFixed(2)}`,
-            { notes, tempoMap, quantized },
-          )
+          const keyAnalysis = analyzeKey(quantized)
+
+          // `session.state` aqui é o estado capturado quando `transcribe()`
+          // foi chamado (closure), não uma leitura ao vivo — mas a fonte não
+          // muda durante `processing`, por isso está sempre correta.
+          const sourceName =
+            session.state.status === 'processing' && session.state.source.kind === 'file'
+              ? session.state.source.name
+              : null
+          const createdAt = new Date().toISOString()
+
+          const document = buildScoreDocument({
+            quantizedNotes: quantized,
+            tempoMap,
+            keyAnalysis,
+            metadata: {
+              title: defaultTitle(sourceName, createdAt),
+              createdAt,
+              sourceName,
+              durationSec: audio.pcm.length / audio.sampleRate,
+              notesConfidence: confidence,
+            },
+          })
+
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[pauta] pauta construída: ${document.measures.length} compassos, ` +
+                `confiança rítmica ${rhythmConfidence.toFixed(2)} (não entra em ` +
+                `ScoreDocument.metadata.confidence — só as três da decisão 5)`,
+              document,
+            )
+          }
+
+          session.finishProcessing(document, notes)
           return
         }
 
