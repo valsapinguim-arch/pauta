@@ -127,3 +127,22 @@ export const result = {
   confidenceTempo: 'andamento',
   confidenceKey: 'tonalidade',
 } as const
+
+/** Textos de `@/features/notation/ScoreView` — Tarefa 13. */
+export const notation = {
+  /** Documento sem notas nenhumas — nunca um pentagrama vazio (decisão 9,
+   *  Âmbito técnico). */
+  emptyTitle: 'Nada para desenhar',
+  emptyBody: 'A transcrição não teve notas suficientes para desenhar uma pauta.',
+
+  decreaseZoom: 'Diminuir o zoom',
+  increaseZoom: 'Aumentar o zoom',
+
+  /** Aviso de confiança baixa (decisão 8) — identifica sempre a causa e
+   *  aponta para a correção correspondente; nunca um aviso genérico. */
+  lowConfidenceTitle: 'Este resultado pode não estar certo',
+  lowConfidenceNotes:
+    'As notas detetadas têm baixa confiança. Tenta gravar outra vez num sítio mais silencioso.',
+  lowConfidenceTempo: 'O andamento pode estar errado — corrige-o abaixo, junto ao BPM.',
+  lowConfidenceKey: 'A tonalidade pode estar errada — corrige-a abaixo.',
+} as const

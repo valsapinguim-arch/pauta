@@ -27,8 +27,8 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   ```
   /src/features/session/views/ → as 5 views do ecrã principal (Tarefa 3)
   /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa)
-  /src/components/ → inventário fechado de 7 (Button, IconButton, Sheet, Progress, Alert, Spinner,
-                     Toast) + icons/ e cx.ts (suporte, fora do inventário)
+  /src/components/ → inventário fechado de 8 (Button, IconButton, Sheet, Progress, Alert, Spinner,
+                     Toast, Input — Tarefa 12) + icons/ e cx.ts (suporte, fora do inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
                      partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
@@ -439,6 +439,54 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
   para a edição do título — o único caso até agora de texto verdadeiramente livre (BPM e tonalidade
   resolveram-se com `IconButton` porque o espaço de valores é enumerável). Não introduzir um nono
   componente sem a mesma justificação escrita.
+
+## Renderização da pauta (Tarefa 13)
+
+- A renderização usa VexFlow com saída SVG (`@/features/notation`); proibido Canvas — a exportação
+  (Tarefa 15), o cursor de reprodução (Tarefa 14) e a seleção (Tarefa 17) dependem de nós SVG no
+  DOM.
+- VexFlow é importado dinamicamente (`loadVexFlow` em `ScoreView.tsx`, uma promessa cacheada a
+  nível de módulo) e nunca entra no bundle inicial — confirmado no build de produção (`vexflow`
+  fica num chunk próprio, à parte de `index-*.js`).
+- A pauta é sempre redesenhada por completo (`drawScore.ts` faz `container.innerHTML = ''` no
+  início); proibido tentar atualização incremental de elementos VexFlow.
+- O número de compassos por linha é calculado a partir da largura disponível
+  (`computeLineBreaks.ts`, puro e testado sem VexFlow); proibido fixá-lo — a app tem de ser legível
+  a 320 px.
+- Cada `StaveNote` desenhada leva `data-measure` e `data-element` correspondentes à posição no
+  `ScoreDocument`; encontram-se por `container.querySelectorAll('.vf-stavenote')` logo a seguir a
+  desenhar cada compasso (`getSVGElement()` do próprio VexFlow procura em `document.getElementById`
+  global e falha em silêncio se o contentor ainda não estiver ligado à árvore do documento — não
+  confiar nele para isto). Nenhuma outra feature localiza notas no SVG pela ordem dos nós gerados
+  pelo VexFlow.
+- Redimensionamento é observado com `ResizeObserver` (`useElementSize.ts`) e sempre com _debounce_
+  (`RESIZE_DEBOUNCE_MS`); a largura inicial mede-se sincronamente na própria _callback ref_ (não num
+  `useEffect` — a regra `react-hooks/set-state-in-effect` do ESLint proíbe isso), o `ResizeObserver`
+  só trata de alterações subsequentes.
+- Zoom aplica-se como escala do SVG (`ScoreView.tsx`): desenha-se para `largura do contentor / zoom`
+  (menos zoom, mais compassos por linha; mais zoom, menos) e depois define-se `width`/`height` do
+  `<svg>` para a largura visível × zoom — nunca `transform: scale()` em CSS (o `viewBox` do VexFlow
+  já dá escala nativa, vetorial, sem o descompasso entre caixa de layout e pintura que o CSS
+  `transform` introduziria). A quebra de linha continua a adaptar-se ao zoom, o que mantém o scroll
+  vertical como gesto normal.
+- Quando a confiança agregada (`ScoreDocument.metadata.confidence.overall`,
+  `LOW_CONFIDENCE_THRESHOLD` em `ScoreView.tsx`) é baixa, o aviso identifica sempre a causa (a mais
+  fraca das três confianças detalhadas — `weakestConfidence`) e aponta para a correção
+  correspondente; proibido aviso genérico sem ação. Este limiar é distinto de
+  `TEMPO.MIN_CONFIDENCE`/`KEY.MIN_CONFIDENCE` (Tarefas 9/11, que decidem `source: 'assumed'` na
+  deteção) — este é sobre o agregado já construído.
+- Um documento sem notas nenhumas mostra estado vazio explicativo (`hasAnyNote` em `ScoreView.tsx`),
+  nunca um pentagrama vazio.
+- `ScoreView` só lê o `ScoreDocument`; proibido modificá-lo — a edição é da Tarefa 17.
+- As cores do pentagrama vêm de `currentColor` (`ScoreView.module.css`, `.canvas svg { fill:
+currentColor; stroke: currentColor }`), a sobrepor o preto fixo que o VexFlow desenha inline —
+  verificado nos dois temas (claro e escuro). Não depender de CSS externo ao SVG para estas cores: a
+  exportação para PNG/PDF (Tarefa 15) vai precisar do SVG com os estilos já aplicados inline ou
+  autossuficientes.
+- **`MODEL_THRESHOLDS` (Tarefa 7) e `NOTE_CLEANUP` (Tarefa 8) continuam provisórios** — o Âmbito
+  técnico desta tarefa pedia para os afinar contra áudio real, mas esta sessão não teve acesso a
+  microfone nem a gravações reais para o fazer. Afinar assim que houver gravações reais disponíveis,
+  ouvindo o resultado como músico, não só a olhar para o código.
 
 ## PWA e service worker (Tarefa 2)
 

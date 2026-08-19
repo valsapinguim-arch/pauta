@@ -1,8 +1,8 @@
 import { Alert, Button, IconButton, Input, Sheet } from '@/components'
 import { MinusIcon, PlusIcon } from '@/components/icons'
+import { ScoreView } from '@/features/notation'
 import type { KeyMode, ScoreDocument } from '@/lib/types'
 import { result } from '@/strings'
-import { ResultPlaceholderScore } from './ResultPlaceholderScore'
 import styles from './ResultView.module.css'
 
 export interface ResultViewProps {
@@ -24,9 +24,8 @@ export interface ResultViewProps {
 }
 
 /**
- * A pauta desenhada aqui é uma ilustração estática — ver
- * `ResultPlaceholderScore` e prompts/tasks/03-interface-minima.md, Notas. A
- * Tarefa 13 substitui-a pelo `ScoreDocument` desenhado a sério com VexFlow.
+ * A pauta é desenhada a sério com VexFlow desde a Tarefa 13 (`ScoreView`,
+ * `@/features/notation`) — substitui a ilustração estática da Tarefa 3.
  */
 export function ResultView({
   document: scoreDocument,
@@ -49,7 +48,7 @@ export function ResultView({
       />
 
       <Sheet elevated padding="lg" className={styles.score}>
-        <ResultPlaceholderScore />
+        <ScoreView document={scoreDocument} />
       </Sheet>
 
       <p className={styles.confidence}>

@@ -19,10 +19,11 @@ const PROCESSING_STAGES: ProcessingStage[] = [
   'analysing',
 ]
 
-/** Documento de exemplo só para a `ResultView` ter um título e uma duração a
- *  mostrar — a pauta em si é uma imagem estática nesta tarefa (ver
- *  prompts/tasks/03-interface-minima.md, Notas). Confiança alta de propósito:
- *  o aviso de confiança baixa é desenho da Tarefa 13, não desta. */
+/** Documento de exemplo só para a `ResultView` ter algo a mostrar sem
+ *  pipeline nenhum a funcionar — a escala de dó maior do título, desenhada
+ *  a sério pela `ScoreView` desde a Tarefa 13. Confiança alta de propósito:
+ *  o aviso de confiança baixa (Tarefa 13, decisão 8) testa-se à parte, via
+ *  `?state=result&tempo=assumed`/`&key=assumed`. */
 const FAKE_DOCUMENT: ScoreDocument = {
   metadata: {
     schemaVersion: 1,
@@ -41,7 +42,132 @@ const FAKE_DOCUMENT: ScoreDocument = {
   },
   key: { tonic: 0, mode: 'major', sharpsOrFlats: 0, confidence: 0.93, source: 'detected' },
   clef: 'treble',
-  measures: [],
+  measures: [
+    {
+      number: 1,
+      elements: [
+        {
+          kind: 'note',
+          step: 'C',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 60,
+          noteType: 'quarter',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 0,
+        },
+        {
+          kind: 'note',
+          step: 'D',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 62,
+          noteType: 'quarter',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 1,
+        },
+        {
+          kind: 'note',
+          step: 'E',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 64,
+          noteType: 'quarter',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 2,
+        },
+        {
+          kind: 'note',
+          step: 'F',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 65,
+          noteType: 'quarter',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 3,
+        },
+      ],
+    },
+    {
+      number: 2,
+      elements: [
+        {
+          kind: 'note',
+          step: 'G',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 67,
+          noteType: 'quarter',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 4,
+        },
+        {
+          kind: 'note',
+          step: 'A',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 69,
+          noteType: 'eighth',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 5,
+        },
+        {
+          kind: 'note',
+          step: 'B',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 71,
+          noteType: 'eighth',
+          dots: 0,
+          accidental: null,
+          tie: 'start',
+          sourceIndex: 6,
+        },
+        {
+          kind: 'note',
+          step: 'C',
+          alter: 0,
+          octave: 5,
+          pitchMidi: 72,
+          noteType: 'half',
+          dots: 0,
+          accidental: null,
+          tie: null,
+          sourceIndex: 7,
+        },
+      ],
+    },
+    {
+      number: 3,
+      elements: [
+        {
+          kind: 'note',
+          step: 'B',
+          alter: 0,
+          octave: 4,
+          pitchMidi: 71,
+          noteType: 'quarter',
+          dots: 0,
+          accidental: null,
+          tie: 'stop',
+          sourceIndex: 6,
+        },
+        { kind: 'rest', noteType: 'half', dots: 1 },
+      ],
+    },
+  ],
 }
 
 /** Notas de exemplo, só para a correção manual de BPM (Tarefa 9) ter algo no
