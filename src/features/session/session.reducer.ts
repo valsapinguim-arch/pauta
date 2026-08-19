@@ -46,6 +46,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
             stage: 'preprocessing',
             progress: 0,
           }
+        case 'library/open':
+          return { status: 'result', document: action.document, notes: [] }
         default:
           return rejected(state, action)
       }
@@ -98,6 +100,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
             stage: 'preprocessing',
             progress: 0,
           }
+        case 'library/open':
+          return { status: 'result', document: action.document, notes: [] }
         default:
           return rejected(state, action)
       }
@@ -113,6 +117,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
             stage: 'preprocessing',
             progress: 0,
           }
+        case 'library/open':
+          return { status: 'result', document: action.document, notes: [] }
         default:
           return rejected(state, action)
       }

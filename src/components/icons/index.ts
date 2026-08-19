@@ -1,11 +1,15 @@
 export {
   AlertTriangleIcon,
+  ChevronLeftIcon,
   CloseIcon,
+  LibraryIcon,
   MetronomeIcon,
   MicIcon,
   MinusIcon,
   PauseIcon,
+  PencilIcon,
   PlayIcon,
   PlusIcon,
   StopIcon,
+  TrashIcon,
 } from './icons'
