@@ -69,15 +69,22 @@ function fixtureFor(status: string, params: URLSearchParams): SessionState | nul
     }
 
     case 'result': {
-      // `?state=result&tempo=assumed` — mostra o aviso de BPM assumido
-      // (Tarefa 9, decisão 5) sem precisar de forjar onsets irregulares.
-      const document =
-        params.get('tempo') === 'assumed'
-          ? {
-              ...FAKE_DOCUMENT,
-              tempo: { ...FAKE_DOCUMENT.tempo, confidence: 0, source: 'assumed' as const },
-            }
-          : FAKE_DOCUMENT
+      // `?state=result&tempo=assumed` / `&key=assumed` — mostra os avisos de
+      // BPM (Tarefa 9, decisão 5) e de tonalidade (Tarefa 11, decisão 5)
+      // assumidos, sem precisar de forjar onsets ou histogramas irregulares.
+      let document = FAKE_DOCUMENT
+      if (params.get('tempo') === 'assumed') {
+        document = {
+          ...document,
+          tempo: { ...document.tempo, confidence: 0, source: 'assumed' as const },
+        }
+      }
+      if (params.get('key') === 'assumed') {
+        document = {
+          ...document,
+          key: { ...document.key, sharpsOrFlats: 0, confidence: 0, source: 'assumed' as const },
+        }
+      }
       return { status: 'result', document, notes: FAKE_NOTES }
     }
 
