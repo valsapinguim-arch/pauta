@@ -154,3 +154,41 @@ export function ChevronLeftIcon(props: IconProps) {
     </svg>
   )
 }
+
+/** Edição manual (Tarefa 17) — altura por semitom/oitava (decisão 4),
+ *  desfazer/refazer (decisão 7). */
+export function ArrowUpIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <path d="M6 11l6-6 6 6" />
+    </svg>
+  )
+}
+
+export function ArrowDownIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <path d="M6 13l6 6 6-6" />
+    </svg>
+  )
+}
+
+export function UndoIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 7 4 12l5 5" />
+      <path d="M4 12h11a5 5 0 0 1 0 10h-1" />
+    </svg>
+  )
+}
+
+export function RedoIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 7l5 5-5 5" />
+      <path d="M20 12H9a5 5 0 0 0 0 10h1" />
+    </svg>
+  )
+}

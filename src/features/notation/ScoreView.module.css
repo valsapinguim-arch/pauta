@@ -64,3 +64,14 @@
   rx: 4px;
   pointer-events: none;
 }
+
+/* Seleção de edição (Tarefa 17) — contorno, não preenchimento, para se
+   distinguir do cursor de reprodução acima mesmo que os dois algum dia
+   coexistam na marcação. Mesma razão de `:global`. */
+.canvas :global(.selection) {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  rx: 4px;
+  pointer-events: none;
+}

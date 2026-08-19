@@ -49,6 +49,16 @@ export function nearestNoteDuration(durationTicks: number): NoteDuration {
   return best
 }
 
+/** Duração em _ticks_ de uma figura conhecida — `undefined` se `noteType`/
+ *  `dots` não corresponderem a nenhuma entrada da tabela (não deveria
+ *  acontecer com os tipos do próprio `NoteType`, mas a validação e a
+ *  edição, Tarefas 12 e 17, preferem um `undefined` explícito a assumir).
+ */
+export function ticksForNoteType(noteType: NoteType, dots: 0 | 1): number | undefined {
+  return NOTE_DURATIONS.find((duration) => duration.noteType === noteType && duration.dots === dots)
+    ?.ticks
+}
+
 /** A maior figura que cabe em `maxTicks`, sem exceder — usada para encurtar
  *  uma nota que sobrepõe a seguinte (decisão 4) e para decompor pausas
  *  (decisão 6), nunca para a escolha inicial da duração de uma nota (essa é

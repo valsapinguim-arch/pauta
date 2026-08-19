@@ -222,6 +222,7 @@ function renderStage(
             session.replaceDocument(applyManualKey(state.document, tonic, mode))
           }
           onTitleChange={(title) => session.replaceDocument(applyTitle(state.document, title))}
+          onDocumentChange={session.replaceDocument}
         />
       )
 

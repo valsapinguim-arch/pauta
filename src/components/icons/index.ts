@@ -1,5 +1,7 @@
 export {
   AlertTriangleIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
   ChevronLeftIcon,
   CloseIcon,
   LibraryIcon,
@@ -10,6 +12,8 @@ export {
   PencilIcon,
   PlayIcon,
   PlusIcon,
+  RedoIcon,
   StopIcon,
   TrashIcon,
+  UndoIcon,
 } from './icons'

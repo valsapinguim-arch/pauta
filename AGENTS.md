@@ -657,6 +657,69 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   decisão 2) — justificação: a biblioteca é a primeira coleção de tamanho variável do plano; a lista
   de formatos de exportação (Tarefa 15) usa `Button` porque são quatro ações fixas.
 
+## Edição manual (Tarefa 17)
+
+- As operações de edição são exclusivamente: alterar altura, alterar duração, eliminar, inserir e
+  transpor (decisão 1). Não adicionar vozes, acordes, dinâmica, articulações, letra, gestão de
+  compassos ou qualquer outra funcionalidade de editor de partituras — quem precisa disso exporta
+  MusicXML (Tarefa 15) e usa um programa de notação a sério.
+- Toda a edição passa por funções puras em `@/lib/notation/edit.ts`
+  (`changePitch`, `changeDuration`, `deleteNote`, `insertNote`, `transpose`, mais
+  `resolveTiedGroup`/`getElementAt` de apoio) que recebem e devolvem um `ScoreDocument`; proibido
+  mutar o documento ou editar diretamente o SVG. Uma posição (`NotationPosition`) é sempre
+  `{ measureNumber, elementIndex }` — a mesma convenção dos atributos `data-measure`/`data-element`
+  do SVG (Tarefa 13, decisão 7): `measureNumber` é 1-indexado (`Measure.number`), `elementIndex` é
+  0-indexado dentro de `measure.elements`.
+- Toda a edição corre `validateScoreDocument` antes de o novo estado sair de `edit.ts`, e deixa a
+  exceção subir tal e qual (mesmo padrão de `repository.save`/`update`, Tarefa 16) — nunca a
+  intercetar dentro de `edit.ts`. É `useScoreEditor` (`@/features/notation`) que a apanha: mantém o
+  documento anterior e marca `error: true` (decisão 8). Uma rejeição "silenciosa" é diferente disto
+  — `changeDuration`/`insertNote` devolvem o MESMO documento (por referência) quando a figura pedida
+  não cabe no espaço livre (ver abaixo); isso não é um erro de validação e não mostra aviso, é só a
+  operação a não fazer nada.
+- Alterar a duração de uma nota requantiza só o compasso afetado (decisão 5), nunca desloca os
+  inícios das notas seguintes: a nova figura absorve o espaço da própria nota mais as pausas
+  consecutivas a seguir (até à próxima nota ou ao fim do compasso), e o que sobrar decompõe-se em
+  pausas novas (`decomposeRestTicks`, Tarefa 10, reutilizada). Se a figura pedida não couber nesse
+  espaço, a operação não faz nada (mesmo documento, por referência) em vez de requantizar o resto do
+  compasso — a alternativa que as Notas/Dependências da tarefa aceitam explicitamente. A interface
+  (`EditToolbar`) não filtra as figuras oferecidas por tamanho disponível; o utilizador pode pedir
+  uma que não caiba e nada visivelmente acontece — aceite pela mesma razão.
+- A seleção de notas resolve-se pelos atributos `data-measure`/`data-element`; proibido depender da
+  ordem dos nós SVG gerados pelo VexFlow. A área sensível ao toque de cada elemento é alargada por
+  um `<rect>` invisível (`MIN_TOUCH_TARGET = 44`, `ScoreView.tsx`) inserido como primeiro filho do
+  grupo `[data-measure][data-element]` — sem isto, seleccionar uma nota com o dedo em telefone é
+  impraticável (cabeças de nota são bem mais pequenas do que 44px).
+- Operações sobre uma parte de uma nota ligada aplicam-se a todas as partes do mesmo `sourceIndex`
+  (`resolveTiedGroup`) — hoje isto cobre `changePitch` e `deleteNote`; `changeDuration` opera só na
+  posição selecionada, mesmo que faça parte de uma ligadura (redimensionar todas as partes de uma
+  ligadura em conjunto ficou fora do âmbito desta tarefa — a alternativa aceite pelas
+  Notas/Dependências é mais simples e mantém o documento sempre válido).
+- Transpor (`transpose`) recalcula alturas, tonalidade (`tonic`, `sharpsOrFlats` via
+  `keySignatureFor`), grafia (`toNotationElements`/`applyAccidentals`, reaproveitados via
+  `respellMeasures`) e clave (`chooseClef`); proibido transpor alterando só a armação. `mode`
+  mantém-se — só a tónica se desloca pelos semitons pedidos.
+- Desfazer/refazer (`useScoreEditor`) é uma pilha de `ScoreDocument` completos, limitada a 30
+  estados (`HISTORY_LIMIT`); proibido implementar operações inversas. As pilhas vivem em estado do
+  React (não numa ref) e são reiniciadas implicitamente a cada montagem — não existe desfazer entre
+  sessões nem persistido.
+- Os controlos globais (BPM, tonalidade, título) aparecem antes da edição nota a nota em
+  `ResultView` (decisão 2) — a maioria dos erros percebidos resolve-se corrigindo o andamento ou a
+  tonalidade, não nota a nota. Não reordenar.
+- Qualquer edição (as cinco operações, desfazer e refazer) para a reprodução em curso primeiro
+  (`stopPlayback`, chamado no início de `useScoreEditor.applyEdit`/`undo`/`redo`) — os osciladores
+  agendados (Tarefa 14) já não corresponderiam ao documento novo.
+- "Oitava com um gesto secundário" (decisão 4) foi resolvida com um SEGUNDO PAR de botões
+  (`ArrowUpIcon`/`ArrowDownIcon` em `variant="ghost"`, ±12 semitons) em vez de um gesto de
+  arrastar/premir longo — mais robusto ao toque e mais descobrível do que um gesto escondido; a
+  decisão continua satisfeita em espírito (visualmente secundário ao par de semitom), não na letra
+  literal de "gesto".
+- A gravação automática (Tarefa 16) e a exportação (Tarefa 15) não precisaram de nenhuma alteração
+  para refletir edições: as duas já consomem `ScoreDocument` diretamente da sessão, que
+  `useScoreEditor` mantém atualizado via `onChange` (`session.replaceDocument`) a cada edição
+  aceite — verificado ao vivo (transpor, apagar, inserir e desfazer sem gerar avisos de gravação
+  nem exportar dados obsoletos).
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
