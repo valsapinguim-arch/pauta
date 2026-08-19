@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Button, IconButton, Sheet } from '@/components'
 import { ArrowDownIcon, ArrowUpIcon, TrashIcon } from '@/components/icons'
 import type { ScoreEditorApi } from './useScoreEditor'
@@ -26,12 +27,29 @@ export interface EditToolbarProps {
  */
 export function EditToolbar({ editor }: EditToolbarProps) {
   const { selectedElement } = editor
+  const firstControlRef = useRef<HTMLButtonElement | null>(null)
+  const wasOpenRef = useRef(false)
+
+  /* Foco no primeiro controlo ao abrir a barra (Tarefa 18, decisão 5) — só
+   *  na transição de "nada selecionado" para "algo selecionado", nunca ao
+   *  trocar de uma nota para outra (isso lutaria com quem está a usar
+   *  "nota seguinte"/"nota anterior" para navegar, Tarefa 18, decisão 4). */
+  useEffect(() => {
+    const isOpen = selectedElement !== null
+    if (isOpen && !wasOpenRef.current) firstControlRef.current?.focus()
+    wasOpenRef.current = isOpen
+  }, [selectedElement])
+
   if (!selectedElement) return null
 
   return (
     <Sheet padding="md" className={styles.toolbar}>
       {selectedElement.kind === 'rest' ? (
-        <Button variant="primary" onClick={() => editor.insertAtSelection(60, 'quarter')}>
+        <Button
+          ref={firstControlRef}
+          variant="primary"
+          onClick={() => editor.insertAtSelection(60, 'quarter')}
+        >
           {strings.insertNote}
         </Button>
       ) : (
@@ -39,6 +57,7 @@ export function EditToolbar({ editor }: EditToolbarProps) {
           <div className={styles.group}>
             <span className={styles.groupLabel}>{strings.pitchLabel}</span>
             <IconButton
+              ref={firstControlRef}
               icon={<ArrowDownIcon />}
               label={strings.decreaseOctave}
               size="sm"

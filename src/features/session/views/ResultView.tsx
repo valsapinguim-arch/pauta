@@ -1,6 +1,8 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Alert, Button, IconButton, Input, Sheet, Spinner, Toast } from '@/components'
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   MetronomeIcon,
   MinusIcon,
   PauseIcon,
@@ -73,6 +75,18 @@ export function ResultView({
   }, [])
   const exportApi = useExport(scoreDocument, getSvgElement)
 
+  /* Foco na região da pauta ao entrar em `result` (Tarefa 18, decisão 5) —
+   *  `ResultView` é montada de novo a cada transição de estado (Tarefa 3,
+   *  decisão 7: as views substituem-se por completo), por isso um efeito
+   *  sem dependências corre exatamente uma vez, na montagem, que é
+   *  exatamente quando se entra neste estado. Sem isto o foco cai no
+   *  `body` e um utilizador de teclado ou de leitor de ecrã perde o
+   *  contexto. */
+  const scoreRegionRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    scoreRegionRef.current?.focus()
+  }, [])
+
   return (
     <div className={styles.container}>
       <Input
@@ -82,7 +96,7 @@ export function ResultView({
         onChange={(event) => onTitleChange(event.target.value)}
       />
 
-      <Sheet elevated padding="lg" className={styles.score}>
+      <Sheet elevated padding="lg" className={styles.score} ref={scoreRegionRef} tabIndex={-1}>
         <ScoreView
           document={scoreDocument}
           cursor={playback.currentPosition}
@@ -91,6 +105,21 @@ export function ResultView({
           onSvgReady={handleSvgReady}
         />
       </Sheet>
+
+      <div className={styles.noteNav}>
+        <IconButton
+          icon={<ChevronLeftIcon />}
+          label={editStrings.previousNote}
+          size="sm"
+          onClick={editor.selectPrevious}
+        />
+        <IconButton
+          icon={<ChevronRightIcon />}
+          label={editStrings.nextNote}
+          size="sm"
+          onClick={editor.selectNext}
+        />
+      </div>
 
       <EditToolbar editor={editor} />
 

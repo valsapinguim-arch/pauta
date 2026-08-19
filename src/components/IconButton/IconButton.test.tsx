@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CloseIcon } from '@/components/icons'
+import { expectNoA11yViolations } from '@/test/axe'
 import { IconButton } from './IconButton'
 
 describe('IconButton', () => {
@@ -37,5 +38,10 @@ describe('IconButton', () => {
     render(<IconButton icon={<CloseIcon />} label="Cancelar" />)
     const svg = screen.getByRole('button', { name: 'Cancelar' }).querySelector('svg')
     expect(svg).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('não tem violações de acessibilidade', async () => {
+    const { container } = render(<IconButton icon={<CloseIcon />} label="Cancelar" />)
+    await expectNoA11yViolations(container)
   })
 })

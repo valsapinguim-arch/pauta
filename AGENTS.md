@@ -720,6 +720,80 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   aceite — verificado ao vivo (transpor, apagar, inserir e desfazer sem gerar avisos de gravação
   nem exportar dados obsoletos).
 
+## Acessibilidade e idioma (Tarefa 18)
+
+- Todo o percurso funcional é operável por teclado com indicador de foco visível
+  (`:focus-visible` em `global.css`); proibido remover o indicador de foco (`outline: none`) sem
+  substituto igualmente visível. A única exceção existente é o `.viewport` do `Toast`
+  (`ToastProvider`/Radix) — é o próprio padrão acessível do Radix Toast (a região só recebe foco
+  programático via F6, nunca por Tab; os controlos lá dentro, como o botão de fechar, continuam com
+  o indicador normal).
+- Mudanças de estado assíncronas são anunciadas por `aria-live`: `polite` para progresso e
+  conclusão, `assertive` só para erros (`role="alert"`, que já é `aria-live="assertive"` implícito —
+  ver `Alert`). Progresso é anunciado por marcos (25/50/75/100%), nunca a cada atualização —
+  `useMilestoneAnnouncement` (`@/features/session/views`), ligado a `ProcessingView` por uma região
+  `aria-live="polite"` própria (`.sr-only`), separada do nome da etapa (que já muda por si só só
+  quatro vezes ao todo). Não ligar `aria-live` diretamente a `state.progress` — é isso que decisão 2
+  proíbe explicitamente.
+- O SVG da pauta (`ScoreView`) tem sempre `role="img"` + `aria-label` gerado por
+  `describeScore(doc)` (`@/lib/notation/describe.ts`) — não há forma de tornar o desenho do VexFlow
+  navegável por leitor de ecrã, mas isto dá o essencial (tonalidade, compasso, andamento, clave,
+  número de compassos, tessitura) de imediato. A lista textual completa das notas
+  (`describeNotes(doc)`, mesmo ficheiro) está disponível a pedido, por um botão
+  (`notation.showNotesList`/`hideNotesList`) — nunca sempre visível (é densa de mais) nem só para
+  leitor de ecrã (é útil a quem não sabe ler pauta). As duas funções são puras e só leem
+  `ScoreDocument` — nunca podem divergir do que está desenhado porque não há um segundo sítio onde a
+  informação viva. `describe.ts` é o primeiro ficheiro em `@/lib` a importar de `@/strings`: a regra
+  geral de `@/lib` ser puro (sem DOM/IO) continua a valer, mas o trabalho destas duas funções é
+  compor texto em pt-PT a partir do documento, e duplicar a tabela de nomes de notas/figuras em vez
+  de reaproveitar `@/strings` seria a duplicação que este ficheiro existe para evitar.
+- Navegação nota a nota por teclado (`editor.selectPrevious`/`selectNext`, `@/lib/notation/edit.ts`
+  `allPositions`) — os botões "nota anterior"/"nota seguinte" em `ResultView` são o caminho por
+  teclado para selecionar uma nota, já que o SVG (`role="img"`) não é navegável por leitor de ecrã e
+  os retângulos de área sensível ao toque (Tarefa 17, decisão 3) não são focáveis. Não remover estes
+  botões nem assumir que clicar no SVG é o único caminho de seleção.
+- Gestão de foco nas transições de estado: `ResultView` foca a região da pauta (`Sheet` com
+  `tabIndex={-1}`) na montagem; `ErrorView` foca um invólucro à volta do `Alert` (que não encaminha
+  `ref`) na montagem; `EditToolbar` foca o primeiro controlo só na transição de "nada selecionado"
+  para "algo selecionado" (nunca ao trocar de nota para nota — isso lutaria com a navegação
+  nota-a-nota acima); a biblioteca (Tarefa 16) devolve o foco ao botão que a abriu, ao fechar, pelos
+  dois caminhos de fecho (`history.back()`/`setShowLibrary(false)`). Cada view de estado principal é
+  montada de novo a cada transição (Tarefa 3, decisão 7), por isso um efeito sem dependências que
+  corre na montagem é o mecanismo certo — não inventar outro.
+- Contraste mínimo 4.5:1 para texto e 3:1 para elementos gráficos, nos dois temas — verificado por
+  cálculo a partir dos valores de `tokens.css` (fórmula de luminância relativa do WCAG), não a
+  olho. `--color-border` foi corrigido nesta tarefa (`#dededa`/`#33333a`, ~1.3:1, para
+  `#8a8a83`/`#77777f`, ~3.4-3.7:1): é o contorno de `Input` e de `Button variant="secondary"`, não
+  só decorativo — dizia onde o campo/botão acaba. Qualquer novo token de cor tem de ser verificado
+  contra os fundos onde vai aparecer antes de entrar em `tokens.css`.
+- `prefers-reduced-motion: reduce` (`global.css`) já elimina toda a animação/transição decorativa
+  (regra `!important` genérica); o cursor de reprodução e o indicador de nível mantêm-se por serem
+  informação, não decoração. `.viewport` de `ScoreView` usa `scroll-behavior: smooth` para o
+  auto-scroll a seguir o cursor — a mesma regra global torna isto instantâneo sob a preferência, sem
+  tratamento à parte.
+- Alvos de toque com pelo menos 44×44 px (`--touch-target-min`, `tokens.css`, já aplicado em
+  `Button`/`IconButton`/`Input`); as notas da pauta são a única exceção documentada e usam áreas de
+  toque invisíveis alargadas (`MIN_TOUCH_TARGET`, `ScoreView.tsx`, Tarefa 17, decisão 3).
+- Proibido `role`/`aria-*` que dupliquem semântica nativa de HTML (ex.: `role="button"` num
+  `<button>`). `role="alert"`/`role="status"`/`role="img"` usados na app são todos legítimos — vão
+  em elementos sem esse papel nativo (`<div>`, `<svg>`).
+- Terminologia musical em pt-PT correta: semibreve, mínima, semínima, colcheia, semicolcheia (não
+  "corchea"/"semicorchea" — são espanhol, não português; alguns comentários internos mais antigos em
+  `@/lib/quantize` ainda usam a forma espanhola por engano, mas não são texto visível ao utilizador,
+  por isso ficaram de fora do âmbito desta revisão). Todo o texto novo desta tarefa usa a forma
+  correta (`edit.noteTypeNames`, Tarefa 17, já a usava).
+- `axe-core` corre nos testes de componentes e nalguns ecrãs principais (`IdleView`, `RecordingView`,
+  `ProcessingView`, `ErrorView`, `LibraryView`) via `expectNoA11yViolations` (`@/test/axe`) — ver
+  "Testes de componentes" abaixo para o que essa função faz e não faz. Encontrou e corrigiu uma
+  violação real: o `<input type="file">` escondido em `IdleView` não tinha nome acessível
+  (`aria-label={idle.pickFile}` adicionado).
+- **Não foi possível fazer a auditoria manual com leitor de ecrã (NVDA/VoiceOver) nesta sessão** —
+  não há nenhum dos dois disponível neste ambiente. O que ficou feito foi revisão de código
+  sistemática (papéis, rótulos, `aria-live`, ordem de foco) mais `axe-core` automatizado, que a
+  própria tarefa reconhece como cobrindo só metade dos problemas — a auditoria manual, que é onde
+  está o valor real desta tarefa (Notas/Dependências), fica por fazer. Fazer antes de considerar a
+  decisão 4 fechada.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
@@ -813,6 +887,13 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   arrastar. Não remover nenhuma das duas partes.
 - Todo componente do inventário fechado tem `ComponentName.test.tsx`: renderiza, responde a
   interação (`@testing-library/user-event`), e cobre o estado desativado quando aplicável.
+- Todo componente do inventário fechado, e os ecrãs principais que tenham teste, incluem um teste
+  `'não tem violações de acessibilidade'` que chama `expectNoA11yViolations(container)`
+  (`@/test/axe`, Tarefa 18) — corre `axe-core` sobre o nó montado e falha com uma mensagem legível
+  se houver violações. A regra `color-contrast` vem desligada nesse helper: o jsdom não pinta nada a
+  sério, por isso não tem dados fiáveis para essa regra — o contraste verifica-se à parte, a partir
+  dos valores de `tokens.css` (secção "Acessibilidade e idioma" abaixo). Não remover essa exceção
+  nem tentar "corrigir" um falso positivo de `color-contrast` em teste — não é real.
 
 ## Qualidade
 

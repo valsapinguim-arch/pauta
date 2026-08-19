@@ -44,6 +44,17 @@ function startTickOf(elements: readonly NotationElement[], index: number): numbe
   return tick
 }
 
+/** Todas as posições do documento, em ordem de leitura (compasso, depois
+ *  elemento) — Tarefa 18, decisão 4: percorrer a pauta com "nota
+ *  anterior"/"nota seguinte" é o caminho por teclado para selecionar uma
+ *  nota, já que o SVG em si (`role="img"`, decisão 3) não é navegável por
+ *  leitor de ecrã. */
+export function allPositions(doc: ScoreDocument): NotationPosition[] {
+  return doc.measures.flatMap((measure) =>
+    measure.elements.map((_, elementIndex) => ({ measureNumber: measure.number, elementIndex })),
+  )
+}
+
 /** Elemento numa posição — `undefined` se `measureNumber`/`elementIndex` não
  *  corresponderem a nada no documento atual (ex.: uma seleção que ficou
  *  desatualizada depois de um desfazer). Exportado para quem só precisa de

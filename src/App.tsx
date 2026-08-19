@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IconButton, Toast } from '@/components'
 import { LibraryIcon } from '@/components/icons'
 import { useFilePicker, useRecordingFlow } from '@/features/capture'
@@ -47,6 +47,21 @@ export function App() {
 
   const autosave = useLibraryAutosave(session)
   const [showLibrary, setShowLibrary] = useState(false)
+  const libraryButtonRef = useRef<HTMLButtonElement | null>(null)
+  const wasLibraryOpenRef = useRef(false)
+
+  /* Foco de volta ao botão que abriu a biblioteca, ao fechar (Tarefa 18,
+   *  decisão 5) — a biblioteca é o "diálogo" mais parecido com um ecrã
+   *  separado que esta app tem (Tarefa 16, decisão 11). O fecho pode vir
+   *  de `history.back()` (assíncrono, via `popstate`) ou de
+   *  `setShowLibrary(false)` direto — este efeito cobre os dois caminhos
+   *  ao reagir à mudança de `showLibrary` em vez de a um deles. */
+  useEffect(() => {
+    if (!showLibrary && wasLibraryOpenRef.current) {
+      libraryButtonRef.current?.focus()
+    }
+    wasLibraryOpenRef.current = showLibrary
+  }, [showLibrary])
 
   /* Decisão 11 (Tarefa 16): sem router, mas o botão "voltar" físico/gesto de
      Android tem de fechar a biblioteca em vez de sair da app. Empurra uma
@@ -84,6 +99,7 @@ export function App() {
         <p className={styles.tagline}>{app.tagline}</p>
         {(state.status === 'idle' || state.status === 'result' || state.status === 'error') && (
           <IconButton
+            ref={libraryButtonRef}
             icon={<LibraryIcon />}
             label={library.openButton}
             variant="ghost"
