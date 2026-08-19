@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type DragEvent, type RefObject } from 'reac
 import { Alert, Button, Sheet, Spinner } from '@/components'
 import { cx } from '@/components/cx'
 import { MicIcon } from '@/components/icons'
+import { MAX_RECORDING_MS } from '@/features/capture'
 import { formatElapsed } from '@/features/session/formatElapsed'
 import { idle } from '@/strings'
 import styles from './IdleView.module.css'
@@ -115,7 +116,9 @@ export function IdleView({
       <div className={styles.container}>
         <Sheet elevated padding="lg" className={styles.explainer}>
           <h2 className={styles.explainerTitle}>{idle.truncateTitle}</h2>
-          <p className={styles.explainerBody}>{idle.truncateBody}</p>
+          <p className={styles.explainerBody}>
+            {idle.truncateBody(Math.round(MAX_RECORDING_MS / 1000))}
+          </p>
           <p className={styles.explainerDuration}>
             {formatElapsed(pendingTruncation.originalDurationMs)}
           </p>
@@ -124,7 +127,7 @@ export function IdleView({
               {idle.truncateCancel}
             </Button>
             <Button variant="primary" onClick={pendingTruncation.onConfirm}>
-              {idle.truncateConfirm}
+              {idle.truncateConfirm(Math.round(MAX_RECORDING_MS / 1000))}
             </Button>
           </div>
         </Sheet>
@@ -147,7 +150,7 @@ export function IdleView({
           {idle.recordButton}
         </Button>
         <p id="idle-record-hint" className={styles.hint}>
-          {idle.recordButtonHint}
+          {idle.recordButtonHint} — {idle.maxDurationNotice(Math.round(MAX_RECORDING_MS / 1000))}
         </p>
       </div>
 

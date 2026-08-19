@@ -42,19 +42,27 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
                      /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents);
                      /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi);
                      /src/lib/migrations/ → migração de `ScoreDocument` persistido por
-                     `schemaVersion` (Tarefa 16, ex.: migrateDocument) — nenhuma pasta de @/lib tem
-                     `index.ts`; importa-se sempre o ficheiro concreto (ex.: `@/lib/notes/cleanNotes`),
-                     nunca um barrel
+                     `schemaVersion` (Tarefa 16, ex.: migrateDocument);
+                     /src/lib/transcribe/ → processamento por blocos (Tarefa 19, ex.: planWindows,
+                     mergeWindowedNotes) — só a parte pura; o `evaluateModel` em si fica em
+                     `transcribe.worker.ts`, que não é @/lib;
+                     /src/lib/performance/ → decisão de limite de duração por capacidade do
+                     dispositivo (Tarefa 19, ex.: chooseDurationLimitMs) — a leitura do `navigator`
+                     em si fica em `@/features/capture/deviceCapability.ts`, que não é @/lib —
+                     nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
+                     (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
+  /src/test/axe.ts → `expectNoA11yViolations` (Tarefa 18)
   /src/sw.ts       → service worker (injectManifest — Tarefa 2)
   /public/models/basic-pitch/ → modelo Basic Pitch empacotado (Tarefa 7)
   /public/models/tfjs-wasm/   → binários WASM do TensorFlow.js (Tarefa 7)
   /public/*.png, /public/favicon.ico, /public/*.svg → ícones PWA (gerados, Tarefa 2)
-  /scripts/        → utilitários de linha de comandos, corridos à mão (ex.: copy-model-assets.js,
-                     Tarefa 7) — nunca parte do build nem do bundle da app
-  /docs/           → arquitetura
+  /scripts/        → utilitários de linha de comandos (ex.: copy-model-assets.js, Tarefa 7, corrido
+                     à mão) — nunca parte do bundle da app; check-bundle-budget.js (Tarefa 19) é
+                     exceção: corre a cada `pnpm build`, não só à mão
+  /docs/           → arquitetura (architecture.md), desempenho (performance.md, Tarefa 19)
   /prompts/        → plano de desenvolvimento
   ```
 - Não criar pastas fora desta estrutura sem atualizar este ficheiro.
@@ -793,6 +801,50 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   própria tarefa reconhece como cobrindo só metade dos problemas — a auditoria manual, que é onde
   está o valor real desta tarefa (Notas/Dependências), fica por fazer. Fazer antes de considerar a
   decisão 4 fechada.
+
+## Desempenho e limites (Tarefa 19)
+
+- Nenhuma alteração motivada por desempenho entra sem medição antes/depois registada em
+  `docs/performance.md`. **A linha de base desse documento está incompleta**: não há dispositivos
+  reais neste ambiente de desenvolvimento, e os três níveis pedidos pela decisão 2 (telefone
+  modesto, telefone recente, portátil) nunca foram medidos — ver a nota no topo do próprio
+  documento antes de confiar em qualquer limite abaixo em produção.
+- Os limites de duração de áudio (`MAX_DURATION_MS`/`MIN_DURATION_MS`,
+  `@/lib/performance/durationLimit.ts`) derivam das medições em `docs/performance.md`; alterá-los
+  exige atualizar essas medições, não só a constante. **Continuam provisórios** (herdados das
+  Tarefas 4/5 sem confirmação numérica) — ver o mesmo documento.
+- O limite efetivo de duração é sempre visível ao utilizador (`idle.maxDurationNotice`,
+  `truncateBody`/`truncateConfirm` — todos funções de `seconds`, não texto fixo, desde esta tarefa);
+  a deteção de capacidade do dispositivo (`detectDeviceCapability`,
+  `@/features/capture/deviceCapability.ts`, lendo `navigator.hardwareConcurrency`/`deviceMemory`)
+  escolhe um valor por omissão (`chooseDurationLimitMs`, puro, `@/lib/performance/durationLimit.ts`)
+  e nunca bloqueia uma ação — a deteção é grosseira e pode errar. Não duplicar a leitura do
+  `navigator` fora de `deviceCapability.ts`; a decisão do valor fica só na função pura.
+- Áudio é processado por janelas com libertação incremental de memória
+  (`TRANSCRIBE_WINDOW`/`planWindows`/`mergeWindowedNotes` em `@/lib/transcribe`,
+  `transcribe.worker.ts`) — proibido voltar a entregar a duração inteira ao modelo num único
+  `evaluateModel`. As janelas sobrepõem-se (`OVERLAP_SEC`) e os fragmentos da mesma nota nas
+  fronteiras fundem-se sempre com `mergeWindowedNotes` (reaproveita `mergeFragmented`, Tarefa 8,
+  decisão 6) — nunca aceitar uma nota partida em dois como resultado final. `frames`/`onsets`/
+  `contours` (Tarefa 7) são locais a cada janela (`transcribeWindow`), nunca acumulados para a peça
+  inteira. Os valores de `TRANSCRIBE_WINDOW` são provisórios (mesma razão dos limites de duração).
+- Todo o `postMessage` de um buffer de áudio usa `transfer` — confirmado por leitura de código nesta
+  tarefa (`usePreprocessAudio`, `useTranscriber`, `audio.worker.ts`, `recorder.worklet.ts`); já
+  estava correto desde as Tarefas 4/6/7, não foi preciso alterar nada. Qualquer `postMessage` novo
+  com um buffer grande tem de manter isto.
+- O bundle inicial não inclui o modelo nem o VexFlow (os dois só entram por `import()` dinâmico,
+  guardrail já existente da Tarefa 15) e respeita o orçamento verificado na build
+  (`scripts/check-bundle-budget.js`, chamado por `pnpm build` a seguir a `vite build`) — mede o gzip
+  de cada `<script>` referenciado em `dist/index.html` e falha a build (`process.exit(1)`) acima de
+  `BUDGET_KB`. Não subir `BUDGET_KB` sem justificação escrita na alteração que o exige; não duplicar
+  esta verificação com `chunkSizeWarningLimit` do Vite (esse fica só como aviso genérico por chunk).
+- Mudar o backend de execução do modelo (Tarefa 7, decisão 2: WASM) exige demonstrar, nos três
+  níveis de dispositivo, que é mais rápido E que produz os mesmos resultados — **não feito nesta
+  sessão**, pela mesma falta de dispositivos reais; o backend mantém-se WASM.
+- A app respondeu ao toque e mostrou progresso monótono durante uma transcrição de teste neste
+  ambiente (áudio sintético de 15 s, ver `docs/performance.md`) — não é a verificação no dispositivo
+  mais fraco que a decisão 6 pede, só uma confirmação de que o pipeline por blocos não regrediu a
+  responsividade que a arquitetura de workers (Tarefas 6/7) já garantia.
 
 ## PWA e service worker (Tarefa 2)
 
