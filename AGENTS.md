@@ -26,14 +26,17 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
 - Aplicação única (não é mono-repo):
   ```
   /src/features/session/views/ → as 5 views do ecrã principal (Tarefa 3)
-  /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa)
+  /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa);
+                     /src/features/export/fonts/ → Bravura/Academico em .ttf, vendorizados para o
+                     PDF (Tarefa 15) — não são os ícones PWA nem assets de UI
   /src/components/ → inventário fechado de 8 (Button, IconButton, Sheet, Progress, Alert, Spinner,
                      Toast, Input — Tarefa 12) + icons/ e cx.ts (suporte, fora do inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
                      partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
                      /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes);
-                     /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents) —
+                     /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents);
+                     /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi) —
                      nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
                      (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
@@ -537,6 +540,57 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   `@/lib/playback` (`scoreToEvents`, `mergeTiedNotes`, `midiToFrequency`, `metronomeEvents`) têm
   teste; verificação manual da reprodução em navegador é obrigatória antes de dar a tarefa por
   concluída.
+
+## Exportação (Tarefa 15)
+
+- Todos os exportadores consomem exclusivamente o `ScoreDocument` (mais o SVG renderizado, no caso
+  de PNG e PDF); proibido exportar a partir de `NoteEvent[]`, `QuantizedNote[]` ou de qualquer
+  estado intermédio — o ficheiro exportado tem de corresponder sempre ao que está no ecrã.
+- MusicXML e MIDI são gerados por funções puras em `@/lib/export`; proibido usar `XMLSerializer`,
+  `DOMParser` ou qualquer API do DOM nesses geradores. Tudo o que toca no DOM (SVG→PNG/PDF,
+  partilha) vive em `@/features/export`.
+- Todo o texto inserido no MusicXML passa por `escapeXml`; todo o nome de ficheiro passa por
+  `sanitizeFilename`.
+- O SVG leva os estilos embutidos antes de ser serializado para PNG ou PDF (`embedSvgColors`); sem
+  isso a imagem sai sem cores nem tipos de letra. Isso inclui três coisas, todas necessárias:
+  cor (`fill`/`stroke` explícitos, porque `currentColor` vem de CSS externo ao SVG),
+  `font-family` em cada `<text>`, e conversão do `font-size` de `pt` para `px`.
+- **`font-size` em `pt` tem de ser convertido para px na exportação**: o VexFlow escreve
+  `font-size="30pt"`, mas o `toPixels` do `svg2pdf.js` só entende `em`, `px` e números sem unidade —
+  em `pt` devolve `0`, e texto a tamanho zero não desenha nada. O sintoma é um PDF com pentagrama,
+  hastes e ligaduras (caminhos) mas sem claves nem cabeças de nota (texto). Não remover
+  `normalizeFontSize` de `embedSvgColors`.
+- O PDF preserva vetores (`svg2pdf.js`); proibido embutir a pauta como imagem rasterizada.
+- O PNG é rasterizado com `canvg`, não com `Image` + `drawImage`: um SVG carregado por
+  `<img src="blob:…">` fica num documento isolado que não vê os tipos de letra registados em
+  `document.fonts`, e as notas saem como caixas vazias. O `<canvas>` do `canvg` vive no documento
+  principal e tem acesso normal a eles. Passar sempre `ignoreDimensions: true` ao `render` — sem
+  isso o `canvg` repõe o tamanho do canvas e perde-se a resolução 2×.
+- Bravura e Academico estão vendorizados em `src/features/export/fonts/*.ttf` e importados com
+  `?inline` (data URI). Não pedir tipos de letra à CDN do VexFlow em runtime: a app não fala com a
+  rede (`NETWORK_ALLOWLIST`), pela mesma razão que o modelo Basic Pitch está em `public/models/`.
+  São `.ttf` e não os `.otf` oficiais porque o módulo de fontes do `jsPDF` não embute contornos CFF;
+  foram convertidos uma vez com `fontTools`/`cu2qu` ao preparar a Tarefa 15 — não regenerar dentro
+  da app.
+- A partilha é decidida por deteção de capacidade (`navigator.canShare`), nunca por _user agent_,
+  com download como alternativa. Um `AbortError` (utilizador cancelou a partilha) não cai para
+  download — seria surpreendente descarregar um ficheiro depois de cancelar o envio dele.
+- O MIDI usa 480 _ticks_ por semínima e o MusicXML usa `divisions` 480, a mesma unidade interna da
+  quantização — não converter unidades de tempo na exportação.
+- Não instalar bibliotecas para gerar MusicXML ou MIDI; ambos os formatos são escritos à mão neste
+  projeto. `jspdf`/`svg2pdf.js`/`canvg` são a exceção deliberada, só para PDF e PNG, e entram sempre
+  por `import()` dinâmico — nenhuma delas pode aparecer no bundle inicial (confirmado no build: são
+  chunks à parte de `index-*.js`).
+- Notas ligadas fundem-se num só evento MIDI (`note on`/`note off` com a duração somada), tal como
+  na reprodução (Tarefa 14) — nunca um `note on` repetido por cada parte da ligadura.
+- `toMusicXml` e `toMidi` são determinísticos: `encoding-date` vem de `metadata.createdAt`, nunca de
+  `new Date()`. Exportar o mesmo documento duas vezes tem de dar exatamente o mesmo ficheiro.
+- Alterações aos exportadores exigem reverificação manual num programa de notação externo — XML bem
+  formado não prova que a música está correta.
+- **Falta a verificação da decisão 9 (abrir o MusicXML no MuseScore e o MIDI num reprodutor)** — não
+  foi possível nesta sessão por não haver software de notação instalado no ambiente. A verificação
+  feita foi estrutural (XML bem formado e com os campos certos, cabeçalho MIDI válido, PDF/PNG
+  inspecionados visualmente). Fazer a validação externa antes de confiar nos ficheiros.
 
 ## PWA e service worker (Tarefa 2)
 

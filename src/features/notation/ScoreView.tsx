@@ -56,6 +56,12 @@ export interface ScoreViewProps {
   /** Nota atualmente a soar (Tarefa 14) — `undefined`/`null` fora de
    *  reprodução, sem cursor nenhum desenhado. */
   cursor?: PlaybackCursor | null | undefined
+  /** Chamado com o `<svg>` acabado de desenhar, ou `null` quando deixa de
+   *  existir (sem notas, ou antes do primeiro desenho) — Tarefa 15: a
+   *  exportação para PNG/PDF precisa do SVG exatamente como está no ecrã
+   *  (decisão 8 da tarefa), nunca de uma cópia guardada que possa já não
+   *  corresponder a um redesenho entretanto. */
+  onSvgReady?: ((svg: SVGSVGElement | null) => void) | undefined
 }
 
 /**
@@ -63,12 +69,20 @@ export interface ScoreViewProps {
  * (decisão 9, guardrail em `AGENTS.md`); nunca o modifica — isso é a Tarefa
  * 17. Sem edição: notas desenhadas não respondem a cliques.
  */
-export function ScoreView({ document: scoreDocument, cursor }: ScoreViewProps) {
+export function ScoreView({ document: scoreDocument, cursor, onSvgReady }: ScoreViewProps) {
   const [vf, setVf] = useState<VexFlowModule | null>(null)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
   const { ref: viewportRef, width: viewportWidth } = useElementSize<HTMLDivElement>()
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const cursorElRef = useRef<SVGRectElement | null>(null)
+  /* Em ref, não direto nas deps do efeito de desenho: `onSvgReady` é quase
+     sempre uma função nova a cada render de quem usa `ScoreView`
+     (`ResultView.tsx`) e não deve forçar um redesenho VexFlow inteiro só
+     por isso — mesmo padrão de `optionsRef` em `useMicrophone`. */
+  const onSvgReadyRef = useRef(onSvgReady)
+  useEffect(() => {
+    onSvgReadyRef.current = onSvgReady
+  }, [onSvgReady])
 
   useEffect(() => {
     let cancelled = false
@@ -104,6 +118,9 @@ export function ScoreView({ document: scoreDocument, cursor }: ScoreViewProps) {
     // `drawScore` limpa o contentor a cada redesenho (Tarefa 13, decisão 4)
     // — o cursor, se existia, foi destruído com o resto do SVG anterior.
     cursorElRef.current = null
+
+    onSvgReadyRef.current?.(svg)
+    return () => onSvgReadyRef.current?.(null)
   }, [vf, scoreDocument, viewportWidth, zoom, hasNotes])
 
   /* Posiciona o cursor (Tarefa 14, decisão 4) sobre o grupo `[data-measure]

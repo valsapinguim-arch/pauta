@@ -82,9 +82,6 @@ export const processing = {
 
 export const result = {
   newTranscription: 'Nova transcrição',
-  /* TODO Tarefa 15: os cinco formatos reais (MusicXML, MIDI, PNG, PDF,
-     partilha). Este é só o slot, desativado. */
-  export: 'Exportar',
 
   /**
    * Controlo de BPM — Tarefa 9, decisão 6: o andamento nunca se apresenta
@@ -138,6 +135,17 @@ export const playback = {
   increaseSpeed: 'Aumentar a velocidade',
   metronomeOn: 'Ligar o metrónomo',
   metronomeOff: 'Desligar o metrónomo',
+} as const
+
+/** Ações de exportação (Tarefa 15) — `ResultView`, via `useExport`.
+ *  `export` é palavra reservada em JS/TS, daí `exportPanel`. */
+export const exportPanel = {
+  musicxml: 'MusicXML',
+  midi: 'MIDI',
+  png: 'Imagem (PNG)',
+  pdf: 'PDF',
+  errorTitle: 'Não foi possível exportar',
+  errorBody: 'Tenta outra vez — se persistir, tenta um dos outros formatos.',
 } as const
 
 /** Textos de `@/features/notation/ScoreView` — Tarefa 13. */
