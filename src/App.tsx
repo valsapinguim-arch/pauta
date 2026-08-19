@@ -15,6 +15,7 @@ import type { SessionApi, SessionState } from '@/features/session'
 import { usePreprocessAudio, useTranscriber } from '@/features/transcribe'
 import type { PreprocessAudioApi, TranscriberApi } from '@/features/transcribe'
 import { applyManualKey } from '@/lib/key/applyManualKey'
+import { applyTitle } from '@/lib/notation/applyTitle'
 import { applyManualBpm } from '@/lib/tempo/applyManualBpm'
 import { app, install, update } from '@/strings'
 import styles from './App.module.css'
@@ -154,6 +155,7 @@ function renderStage(
           onKeyChange={(tonic, mode) =>
             session.replaceDocument(applyManualKey(state.document, tonic, mode))
           }
+          onTitleChange={(title) => session.replaceDocument(applyTitle(state.document, title))}
         />
       )
 
