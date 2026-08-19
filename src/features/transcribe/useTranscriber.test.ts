@@ -103,4 +103,41 @@ describe('useTranscriber', () => {
       code: 'transcribe-failed',
     })
   })
+
+  it('onmessageerror leva a sessão a "error" em vez de ficar presa (Tarefa 21, decisão 5)', async () => {
+    const { instances } = installFakeWorker()
+    const { result } = renderHook(useTestHarness)
+
+    act(() => result.current.session.startProcessing({ kind: 'microphone' }))
+    act(() => result.current.transcriber.transcribe(AUDIO))
+
+    act(() => instances[0]?.onmessageerror?.({} as MessageEvent))
+
+    expect(result.current.session.state).toMatchObject({
+      status: 'error',
+      code: 'transcribe-failed',
+    })
+  })
+
+  it('sem nenhuma mensagem do worker, o limite de tempo dispara "operation-timeout" (Tarefa 21, decisão 6)', async () => {
+    vi.useFakeTimers()
+    try {
+      installFakeWorker()
+      const { result } = renderHook(useTestHarness)
+
+      act(() => result.current.session.startProcessing({ kind: 'microphone' }))
+      act(() => result.current.transcriber.transcribe(AUDIO))
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_001)
+      })
+
+      expect(result.current.session.state).toMatchObject({
+        status: 'error',
+        code: 'operation-timeout',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

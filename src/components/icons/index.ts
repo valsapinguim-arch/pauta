@@ -17,4 +17,5 @@ export {
   StopIcon,
   TrashIcon,
   UndoIcon,
+  WrenchIcon,
 } from './icons'

@@ -50,8 +50,11 @@ export type SessionState =
     }
   | {
       status: 'error'
-      /** Código do catálogo de erros (Tarefa 21, decisão 1). Tipado como
-       *  `string` nesta fase porque o catálogo só existe a partir da Tarefa 21. */
+      /** Código do catálogo de erros (`@/lib/errors`, Tarefa 21, decisão 1).
+       *  Tipado como `string`, não `ErrorCode`: os workers (Tarefas 6, 7) e o
+       *  registo de diagnóstico também usam códigos que não são para mostrar
+       *  ao utilizador (`app-crash`, por exemplo) — `ErrorView` já trata um
+       *  código desconhecido do catálogo com a mensagem genérica. */
       code: string
       recoverable: boolean
     }

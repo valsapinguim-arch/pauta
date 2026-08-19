@@ -1,8 +1,15 @@
 import { migrateDocument, type MigrationResult } from '@/lib/migrations/migrateDocument'
 import { validateScoreDocument } from '@/lib/notation/validateScoreDocument'
 import type { ScoreDocument } from '@/lib/types'
+import { withTimeout } from '@/lib/withTimeout'
 import { QUOTA_WARNING_RATIO } from './constants'
 import { openLibraryDb, TRANSCRIPTIONS_STORE, type StoredTranscription } from './db'
+
+/** Tarefa 21, decisão 6 — a escrita em IndexedDB não deveria demorar mais do
+ *  que uma fração de segundo; este limite existe para o caso "nunca mais
+ *  responde" (ex.: outra aba a segurar uma transação aberta), não para
+ *  discos lentos normais. */
+const WRITE_TIMEOUT_MS = 10_000
 
 /** Erro nomeado (mesmo espírito de `ScoreDocumentValidationError`, Tarefa
  *  12) — falha de escrita explícita, nunca silenciosa (decisão 8). `cause`
@@ -84,7 +91,7 @@ export async function save(document: ScoreDocument): Promise<SaveResult> {
 
   try {
     const db = await openLibraryDb()
-    await db.add(TRANSCRIPTIONS_STORE, record)
+    await withTimeout(db.add(TRANSCRIPTIONS_STORE, record), WRITE_TIMEOUT_MS, 'guardar transcrição')
   } catch (error) {
     throw new LibrarySaveError('Não foi possível guardar a transcrição', error)
   }
@@ -116,7 +123,11 @@ export async function update(id: string, document: ScoreDocument): Promise<void>
   }
 
   try {
-    await db.put(TRANSCRIPTIONS_STORE, record)
+    await withTimeout(
+      db.put(TRANSCRIPTIONS_STORE, record),
+      WRITE_TIMEOUT_MS,
+      'atualizar transcrição',
+    )
   } catch (error) {
     throw new LibrarySaveError('Não foi possível guardar as alterações', error)
   }

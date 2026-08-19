@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { logError } from '@/features/diagnostics/errorLog'
 import type { SessionApi } from '@/features/session'
 import { analyzeKey } from '@/lib/key/analyzeKey'
 import { cleanNotes } from '@/lib/notes/cleanNotes'
@@ -8,6 +9,14 @@ import { quantize } from '@/lib/quantize/quantize'
 import { buildTempoMap } from '@/lib/tempo/buildTempoMap'
 import type { CapturedAudio } from '@/lib/types'
 import type { TranscribeRequest, TranscribeResponse } from '@/workers/transcribe.worker.types'
+
+/** Tarefa 21, decisão 6 — cobre o caso em que o worker não morre mas fica
+ *  pendurado (memória esgotada, contexto WebGL perdido, Notas/Dependências
+ *  da tarefa). Generoso de propósito: o processamento por blocos (Tarefa
+ *  19) já pode legitimamente demorar dezenas de segundos num dispositivo
+ *  fraco — o limite existe para o caso "nunca mais responde", não para
+ *  apertar o caso lento. */
+const TRANSCRIBE_TIMEOUT_MS = 120_000
 
 export interface TranscriberApi {
   /** Corre uma transcrição no worker (Tarefa 7). Chamar diretamente a partir
@@ -45,11 +54,20 @@ export interface TranscriberApi {
  */
 export function useTranscriber(session: SessionApi): TranscriberApi {
   const workerRef = useRef<Worker | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearTimeoutGuard = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }, [])
 
   const terminate = useCallback(() => {
+    clearTimeoutGuard()
     workerRef.current?.terminate()
     workerRef.current = null
-  }, [])
+  }, [clearTimeoutGuard])
 
   const getWorker = useCallback(() => {
     if (!workerRef.current) {
@@ -63,6 +81,29 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
     return workerRef.current
   }, [])
 
+  /** Regista no diagnóstico local antes de falhar a sessão (Tarefa 21,
+   *  decisão 3) — a mensagem técnica fica só aqui, nunca na interface. */
+  const fail = useCallback(
+    (code: string, technicalDetails: string) => {
+      void logError({
+        code,
+        occurredAt: new Date().toISOString(),
+        context: 'useTranscriber',
+        technicalDetails,
+      })
+      session.fail(code, true)
+    },
+    [session],
+  )
+
+  const armTimeout = useCallback(() => {
+    clearTimeoutGuard()
+    timeoutRef.current = setTimeout(() => {
+      fail('operation-timeout', 'transcribe.worker.ts não respondeu dentro do limite')
+      terminate()
+    }, TRANSCRIBE_TIMEOUT_MS)
+  }, [clearTimeoutGuard, fail, terminate])
+
   const transcribe = useCallback(
     (audio: CapturedAudio) => {
       const worker = getWorker()
@@ -71,6 +112,9 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
         const message = event.data
 
         if (message.type === 'progress') {
+          // Progresso é sinal de vida — reinicia o limite de tempo (decisão
+          // 6) em vez de o deixar contar desde o pedido original.
+          armTimeout()
           session.advanceProcessing(message.stage, message.progress)
           return
         }
@@ -123,12 +167,13 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
               )
             }
 
+            clearTimeoutGuard()
             session.finishProcessing(document, notes)
           } catch (error) {
             if (import.meta.env.DEV) {
               console.error('[pauta] pipeline de notação falhou depois da inferência', error)
             }
-            session.fail('transcribe-failed', true)
+            fail('transcribe-failed', String(error))
             terminate()
           }
           return
@@ -137,12 +182,22 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
         // message.type === 'error' — um worker que falhou a meio de uma
         // transcrição já não está num estado de confiar para a próxima; ver
         // decisão 7, mesma lógica do cancelamento: descartar e recarregar.
-        session.fail(message.code, true)
+        fail(message.code, message.message)
         terminate()
       }
 
+      // Tarefa 21, decisão 5: cobre a morte inesperada do worker
+      // (`onerror`, ex.: exceção não apanhada a meio do módulo) E uma
+      // mensagem que chega mas não pode ser desserializada (`onmessageerror`,
+      // ex.: `postMessage` de algo não clonável) — nenhum dos dois passa por
+      // `onmessage`, por isso precisam do seu próprio tratamento.
       worker.onerror = () => {
-        session.fail('transcribe-failed', true)
+        fail('transcribe-failed', 'worker.onerror — worker de transcrição morreu inesperadamente')
+        terminate()
+      }
+
+      worker.onmessageerror = () => {
+        fail('transcribe-failed', 'worker.onmessageerror — mensagem do worker não pôde ser lida')
         terminate()
       }
 
@@ -151,12 +206,13 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
         pcm: audio.pcm,
         sampleRate: audio.sampleRate,
       }
+      armTimeout()
       // Transferido, não copiado — mesma decisão 2 da Tarefa 6. `audio.pcm`
       // não volta a ser lido depois desta linha; nada no pipeline atual
       // guarda essa referência para mais tarde.
       worker.postMessage(request, [audio.pcm.buffer])
     },
-    [session, getWorker, terminate],
+    [session, getWorker, terminate, fail, armTimeout, clearTimeoutGuard],
   )
 
   return { transcribe, cancel: terminate }

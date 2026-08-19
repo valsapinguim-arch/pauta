@@ -126,6 +126,15 @@ export function LibraryIcon(props: IconProps) {
   )
 }
 
+/** Ecrã de diagnóstico (Tarefa 21) — acesso discreto a partir do cabeçalho. */
+export function WrenchIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2Z" />
+    </svg>
+  )
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
