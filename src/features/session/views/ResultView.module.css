@@ -21,6 +21,14 @@
   max-width: 32rem;
 }
 
+.playback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .confidence {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);

@@ -54,3 +54,13 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
 }
+
+/* Cursor de reprodução (Tarefa 14) — retângulo translúcido atrás da nota
+   atual; `:global` porque é inserido diretamente no SVG do VexFlow, fora do
+   alcance do CSS Modules. */
+.canvas :global(.cursor) {
+  fill: var(--color-accent);
+  opacity: 0.2;
+  rx: 4px;
+  pointer-events: none;
+}

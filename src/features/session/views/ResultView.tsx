@@ -1,8 +1,16 @@
 import { Alert, Button, IconButton, Input, Sheet } from '@/components'
-import { MinusIcon, PlusIcon } from '@/components/icons'
-import { ScoreView } from '@/features/notation'
+import {
+  MetronomeIcon,
+  MinusIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  StopIcon,
+} from '@/components/icons'
+import { ScoreView, usePlayback } from '@/features/notation'
+import { PLAYBACK } from '@/lib/playback/constants'
 import type { KeyMode, ScoreDocument } from '@/lib/types'
-import { result } from '@/strings'
+import { playback as playbackStrings, result } from '@/strings'
 import styles from './ResultView.module.css'
 
 export interface ResultViewProps {
@@ -37,6 +45,7 @@ export function ResultView({
   const { bpm, source: tempoSource } = scoreDocument.tempo
   const { tonic, mode, source: keySource } = scoreDocument.key
   const { confidence } = scoreDocument.metadata
+  const playback = usePlayback(scoreDocument)
 
   return (
     <div className={styles.container}>
@@ -48,8 +57,44 @@ export function ResultView({
       />
 
       <Sheet elevated padding="lg" className={styles.score}>
-        <ScoreView document={scoreDocument} />
+        <ScoreView document={scoreDocument} cursor={playback.currentPosition} />
       </Sheet>
+
+      <div className={styles.playback}>
+        <IconButton
+          icon={playback.isPlaying ? <PauseIcon /> : <PlayIcon />}
+          label={playback.isPlaying ? playbackStrings.pause : playbackStrings.play}
+          onClick={() => (playback.isPlaying ? playback.pause() : playback.play())}
+        />
+        <IconButton icon={<StopIcon />} label={playbackStrings.stop} onClick={playback.stop} />
+
+        <div className={styles.tempoControl}>
+          <IconButton
+            icon={<MinusIcon />}
+            label={playbackStrings.decreaseSpeed}
+            size="sm"
+            disabled={playback.speed <= PLAYBACK.MIN_SPEED}
+            onClick={() => playback.setSpeed(playback.speed - PLAYBACK.SPEED_STEP)}
+          />
+          <span className={styles.tempoValue}>{playback.speed.toFixed(2)}x</span>
+          <IconButton
+            icon={<PlusIcon />}
+            label={playbackStrings.increaseSpeed}
+            size="sm"
+            disabled={playback.speed >= PLAYBACK.MAX_SPEED}
+            onClick={() => playback.setSpeed(playback.speed + PLAYBACK.SPEED_STEP)}
+          />
+        </div>
+
+        <IconButton
+          icon={<MetronomeIcon />}
+          label={
+            playback.isMetronomeOn ? playbackStrings.metronomeOff : playbackStrings.metronomeOn
+          }
+          variant={playback.isMetronomeOn ? 'default' : 'ghost'}
+          onClick={playback.toggleMetronome}
+        />
+      </div>
 
       <p className={styles.confidence}>
         {result.confidenceLabel} {Math.round(confidence.overall * 100)}% ({result.confidenceNotes}{' '}

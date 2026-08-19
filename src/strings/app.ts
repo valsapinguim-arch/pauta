@@ -128,6 +128,18 @@ export const result = {
   confidenceKey: 'tonalidade',
 } as const
 
+/** Controlos de reprodução (Tarefa 14) — `ResultView`, via `usePlayback`. */
+export const playback = {
+  play: 'Reproduzir',
+  pause: 'Pausar',
+  stop: 'Parar reprodução',
+  speedLabel: 'Velocidade',
+  decreaseSpeed: 'Diminuir a velocidade',
+  increaseSpeed: 'Aumentar a velocidade',
+  metronomeOn: 'Ligar o metrónomo',
+  metronomeOff: 'Desligar o metrónomo',
+} as const
+
 /** Textos de `@/features/notation/ScoreView` — Tarefa 13. */
 export const notation = {
   /** Documento sem notas nenhumas — nunca um pentagrama vazio (decisão 9,
