@@ -24,7 +24,11 @@ export interface TranscribeProgressMessage {
   type: 'progress'
   stage: TranscribeStage
   /** `preparing-model`: fração do download do modelo (Tarefa 7, decisão 5).
-   *  `transcribing`: fração de janelas de 2 s processadas (decisão 6). */
+   *  `transcribing`: combina duas camadas de janela — as janelas de ~10 s
+   *  do processamento por blocos (Tarefa 19, decisão 5) e, dentro de cada
+   *  uma, as janelas de 2 s que o próprio `basic-pitch` usa internamente
+   *  (Tarefa 7, decisão 6). O worker já faz essa combinação; quem lê esta
+   *  mensagem só vê uma fração 0-1 monótona da transcrição inteira. */
   progress: number
 }
 

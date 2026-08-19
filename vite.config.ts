@@ -91,8 +91,12 @@ export default defineConfig({
     },
   },
   build: {
-    /* Ainda sem orçamento de bundle a sério: isso é da Tarefa 19, com medições.
-       Este aviso serve só para não deixar o tamanho crescer sem se notar. */
+    /* Aviso genérico por chunk (VexFlow, o modelo, etc. já ultrapassam isto
+       de propósito — são grandes por necessidade e ficam fora do caminho
+       crítico via import() dinâmico). O orçamento a sério, específico do
+       JavaScript que carrega mesmo no arranque, é verificado depois do
+       build por scripts/check-bundle-budget.js (Tarefa 19, decisão 8) — não
+       duplicar essa verificação aqui. */
     chunkSizeWarningLimit: 600,
   },
 })

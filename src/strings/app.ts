@@ -14,6 +14,10 @@ export const app = {
 export const idle = {
   recordButton: 'Gravar',
   recordButtonHint: 'Toca para começar a gravar',
+  /** Limite efetivo de duração, sempre visível (Tarefa 19, decisão 4) — o
+   *  valor pode ser mais baixo do que o teto de 60 s num dispositivo
+   *  detetado como fraco; nunca fica implícito. */
+  maxDurationNotice: (seconds: number) => `Duração máxima: ${seconds} s`,
   pickFile: 'Usar um ficheiro de áudio',
   dropHint: 'Ou arrasta um ficheiro de áudio para aqui',
 
@@ -51,11 +55,16 @@ export const idle = {
    * `@/strings/errors.ts`): o ficheiro é válido, só mais longo do que a app
    * consegue transcrever de uma vez. A duração original mostra-se ao lado,
    * formatada com `formatElapsed` — não faz parte deste texto estático.
+   *
+   * Funções, não texto fixo, desde a Tarefa 19 (decisão 4): o limite já não
+   * é sempre 60 s — pode ser mais baixo num dispositivo detetado como
+   * fraco (`MAX_RECORDING_MS`, `@/features/capture`), e o texto tem de
+   * refletir o valor efetivo, nunca um número que possa estar errado.
    */
   truncateTitle: 'Ficheiro mais longo do que o limite',
-  truncateBody:
-    'Só é possível transcrever até 60 segundos de cada vez. Continuar só com o início do ficheiro?',
-  truncateConfirm: 'Usar os primeiros 60 segundos',
+  truncateBody: (seconds: number) =>
+    `Só é possível transcrever até ${seconds} segundos de cada vez. Continuar só com o início do ficheiro?`,
+  truncateConfirm: (seconds: number) => `Usar os primeiros ${seconds} segundos`,
   truncateCancel: 'Cancelar',
 } as const
 
