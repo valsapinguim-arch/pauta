@@ -63,8 +63,12 @@
     "@spotify/basic-pitch": "^1.0.1",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "canvg": "^4.0.3",
+    "jspdf": "^4.2.1",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "svg2pdf.js": "^2.7.0",
+    "vexflow": "^5.0.0"
   }
 }

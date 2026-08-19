@@ -63,6 +63,36 @@ export function AlertTriangleIcon(props: IconProps) {
   )
 }
 
+/** Reprodução (Tarefa 14) — play/pause/metrónomo. `StopIcon`, já acima, é
+ *  reutilizado para o botão de parar. */
+export function PlayIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M6 4v16l14-8Z" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function PauseIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none" />
+      <rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function MetronomeIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 21h6l-2-15h-2Z" />
+      <path d="M8 21h8" />
+      <path d="M12 6V3" />
+      <path d="M10.5 12 15 8" />
+    </svg>
+  )
+}
+
 /** Controlo de BPM (Tarefa 9) — evita introduzir um oitavo componente
  *  (`Input`) para um único campo numérico; um par +/− com `IconButton` já
  *  existente cobre o caso sem alargar o inventário fechado. */

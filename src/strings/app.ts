@@ -82,9 +82,6 @@ export const processing = {
 
 export const result = {
   newTranscription: 'Nova transcrição',
-  /* TODO Tarefa 15: os cinco formatos reais (MusicXML, MIDI, PNG, PDF,
-     partilha). Este é só o slot, desativado. */
-  export: 'Exportar',
 
   /**
    * Controlo de BPM — Tarefa 9, decisão 6: o andamento nunca se apresenta
@@ -126,4 +123,46 @@ export const result = {
   confidenceNotes: 'notas',
   confidenceTempo: 'andamento',
   confidenceKey: 'tonalidade',
+} as const
+
+/** Controlos de reprodução (Tarefa 14) — `ResultView`, via `usePlayback`. */
+export const playback = {
+  play: 'Reproduzir',
+  pause: 'Pausar',
+  stop: 'Parar reprodução',
+  speedLabel: 'Velocidade',
+  decreaseSpeed: 'Diminuir a velocidade',
+  increaseSpeed: 'Aumentar a velocidade',
+  metronomeOn: 'Ligar o metrónomo',
+  metronomeOff: 'Desligar o metrónomo',
+} as const
+
+/** Ações de exportação (Tarefa 15) — `ResultView`, via `useExport`.
+ *  `export` é palavra reservada em JS/TS, daí `exportPanel`. */
+export const exportPanel = {
+  musicxml: 'MusicXML',
+  midi: 'MIDI',
+  png: 'Imagem (PNG)',
+  pdf: 'PDF',
+  errorTitle: 'Não foi possível exportar',
+  errorBody: 'Tenta outra vez — se persistir, tenta um dos outros formatos.',
+} as const
+
+/** Textos de `@/features/notation/ScoreView` — Tarefa 13. */
+export const notation = {
+  /** Documento sem notas nenhumas — nunca um pentagrama vazio (decisão 9,
+   *  Âmbito técnico). */
+  emptyTitle: 'Nada para desenhar',
+  emptyBody: 'A transcrição não teve notas suficientes para desenhar uma pauta.',
+
+  decreaseZoom: 'Diminuir o zoom',
+  increaseZoom: 'Aumentar o zoom',
+
+  /** Aviso de confiança baixa (decisão 8) — identifica sempre a causa e
+   *  aponta para a correção correspondente; nunca um aviso genérico. */
+  lowConfidenceTitle: 'Este resultado pode não estar certo',
+  lowConfidenceNotes:
+    'As notas detetadas têm baixa confiança. Tenta gravar outra vez num sítio mais silencioso.',
+  lowConfidenceTempo: 'O andamento pode estar errado — corrige-o abaixo, junto ao BPM.',
+  lowConfidenceKey: 'A tonalidade pode estar errada — corrige-a abaixo.',
 } as const

@@ -26,13 +26,17 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
 - Aplicação única (não é mono-repo):
   ```
   /src/features/session/views/ → as 5 views do ecrã principal (Tarefa 3)
-  /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa)
-  /src/components/ → inventário fechado de 7 (Button, IconButton, Sheet, Progress, Alert, Spinner,
-                     Toast) + icons/ e cx.ts (suporte, fora do inventário)
+  /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa);
+                     /src/features/export/fonts/ → Bravura/Academico em .ttf, vendorizados para o
+                     PDF (Tarefa 15) — não são os ícones PWA nem assets de UI
+  /src/components/ → inventário fechado de 8 (Button, IconButton, Sheet, Progress, Alert, Spinner,
+                     Toast, Input — Tarefa 12) + icons/ e cx.ts (suporte, fora do inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
                      partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
-                     /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes) —
+                     /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes);
+                     /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents);
+                     /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi) —
                      nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
                      (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
@@ -439,6 +443,154 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
   para a edição do título — o único caso até agora de texto verdadeiramente livre (BPM e tonalidade
   resolveram-se com `IconButton` porque o espaço de valores é enumerável). Não introduzir um nono
   componente sem a mesma justificação escrita.
+
+## Renderização da pauta (Tarefa 13)
+
+- A renderização usa VexFlow com saída SVG (`@/features/notation`); proibido Canvas — a exportação
+  (Tarefa 15), o cursor de reprodução (Tarefa 14) e a seleção (Tarefa 17) dependem de nós SVG no
+  DOM.
+- VexFlow é importado dinamicamente (`loadVexFlow` em `ScoreView.tsx`, uma promessa cacheada a
+  nível de módulo) e nunca entra no bundle inicial — confirmado no build de produção (`vexflow`
+  fica num chunk próprio, à parte de `index-*.js`).
+- A pauta é sempre redesenhada por completo (`drawScore.ts` faz `container.innerHTML = ''` no
+  início); proibido tentar atualização incremental de elementos VexFlow.
+- O número de compassos por linha é calculado a partir da largura disponível
+  (`computeLineBreaks.ts`, puro e testado sem VexFlow); proibido fixá-lo — a app tem de ser legível
+  a 320 px.
+- Cada `StaveNote` desenhada leva `data-measure` e `data-element` correspondentes à posição no
+  `ScoreDocument`; encontram-se por `container.querySelectorAll('.vf-stavenote')` logo a seguir a
+  desenhar cada compasso (`getSVGElement()` do próprio VexFlow procura em `document.getElementById`
+  global e falha em silêncio se o contentor ainda não estiver ligado à árvore do documento — não
+  confiar nele para isto). Nenhuma outra feature localiza notas no SVG pela ordem dos nós gerados
+  pelo VexFlow.
+- Redimensionamento é observado com `ResizeObserver` (`useElementSize.ts`) e sempre com _debounce_
+  (`RESIZE_DEBOUNCE_MS`); a largura inicial mede-se sincronamente na própria _callback ref_ (não num
+  `useEffect` — a regra `react-hooks/set-state-in-effect` do ESLint proíbe isso), o `ResizeObserver`
+  só trata de alterações subsequentes.
+- Zoom aplica-se como escala do SVG (`ScoreView.tsx`): desenha-se para `largura do contentor / zoom`
+  (menos zoom, mais compassos por linha; mais zoom, menos) e depois define-se `width`/`height` do
+  `<svg>` para a largura visível × zoom — nunca `transform: scale()` em CSS (o `viewBox` do VexFlow
+  já dá escala nativa, vetorial, sem o descompasso entre caixa de layout e pintura que o CSS
+  `transform` introduziria). A quebra de linha continua a adaptar-se ao zoom, o que mantém o scroll
+  vertical como gesto normal.
+- Quando a confiança agregada (`ScoreDocument.metadata.confidence.overall`,
+  `LOW_CONFIDENCE_THRESHOLD` em `ScoreView.tsx`) é baixa, o aviso identifica sempre a causa (a mais
+  fraca das três confianças detalhadas — `weakestConfidence`) e aponta para a correção
+  correspondente; proibido aviso genérico sem ação. Este limiar é distinto de
+  `TEMPO.MIN_CONFIDENCE`/`KEY.MIN_CONFIDENCE` (Tarefas 9/11, que decidem `source: 'assumed'` na
+  deteção) — este é sobre o agregado já construído.
+- Um documento sem notas nenhumas mostra estado vazio explicativo (`hasAnyNote` em `ScoreView.tsx`),
+  nunca um pentagrama vazio.
+- `ScoreView` só lê o `ScoreDocument`; proibido modificá-lo — a edição é da Tarefa 17.
+- As cores do pentagrama vêm de `currentColor` (`ScoreView.module.css`, `.canvas svg { fill:
+currentColor; stroke: currentColor }`), a sobrepor o preto fixo que o VexFlow desenha inline —
+  verificado nos dois temas (claro e escuro). Não depender de CSS externo ao SVG para estas cores: a
+  exportação para PNG/PDF (Tarefa 15) vai precisar do SVG com os estilos já aplicados inline ou
+  autossuficientes.
+- **`MODEL_THRESHOLDS` (Tarefa 7) e `NOTE_CLEANUP` (Tarefa 8) continuam provisórios** — o Âmbito
+  técnico desta tarefa pedia para os afinar contra áudio real, mas esta sessão não teve acesso a
+  microfone nem a gravações reais para o fazer. Afinar assim que houver gravações reais disponíveis,
+  ouvindo o resultado como músico, não só a olhar para o código.
+
+## Reprodução (Tarefa 14)
+
+- A reprodução sintetiza o `ScoreDocument`; nunca reproduz o áudio original — o objetivo é
+  verificar a transcrição, não ouvir a gravação.
+- O agendamento de notas usa exclusivamente o relógio do `AudioContext` (`currentTime` +
+  `start(when)`); proibido `setTimeout`/`setInterval` para agendar som. Um `setInterval`
+  (`PLAYBACK.SCHEDULER_INTERVAL_MS`, `usePlayback.ts`) é permitido só para decidir QUANDO verificar
+  se há mais eventos a agendar (o clássico agendador de janela de antecipação) — o instante de cada
+  nota vem sempre de `audioContext.currentTime`, nunca do temporizador.
+- O cursor é animado com `requestAnimationFrame` lendo `audioContext.currentTime`; proibido mover o
+  cursor a partir de temporizadores ou de contagem de notas tocadas.
+- Notas unidas por ligadura de prolongação tocam como um único som (`mergeTiedNotes`,
+  `@/lib/playback`); proibido tocar cada parte separadamente.
+- `stop()` desliga e desconecta todos os osciladores agendados, incluindo os agendados para o
+  futuro (`disconnectScheduledNode`, `@/features/notation/synth.ts`); nenhuma nota toca depois de
+  parar.
+- O `AudioContext` de reprodução é distinto do de captura (Tarefa 4) e é criado dentro de um gesto
+  do utilizador (`audioContextRef.current ??= new AudioContext()`, dentro de `play()`) — nunca antes,
+  para não ficar suspenso em iOS.
+- O controlo de velocidade altera durações, nunca frequências — `scoreToEvents(scoreDocument,
+speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não recebe `speed`.
+- Metrónomo desligado por omissão.
+- A reprodução para automaticamente quando o `ScoreDocument` muda (edição, BPM, tonalidade) —
+  comparação por referência em `usePlayback` (`ScoreDocument` é sempre reconstruído, nunca mutado,
+  Tarefa 12 decisão 8), nunca por um `deepEqual`.
+- Não adicionar samples de instrumento nem bibliotecas de síntese (Tone.js) — o orçamento de bundle
+  está comprometido com o modelo e o VexFlow. Só osciladores nativos do Web Audio
+  (`@/features/notation/synth.ts`): onda triangular para notas, quadrada curta para o clique do
+  metrónomo.
+- Posição da reprodução guardada como proporção do total (`positionRatioRef`, 0 a 1), nunca em
+  segundos absolutos — como a `speed` já está "cozinhada" dentro dos eventos de
+  `scoreToEvents`/`metronomeEvents`, a proporção continua válida depois de uma mudança de
+  velocidade a meio, sem conversão nenhuma.
+- `metronomeEvents(tempo, durationSec)` não recebe `speed`; quem agenda (`usePlayback`) escala o
+  clique passando `{ ...tempo, bpm: tempo.bpm * speed }` — multiplicar o `bpm` pela velocidade
+  produz exatamente os mesmos instantes que dividir o tempo por ela, sem duplicar a lógica de escala
+  entre notas e metrónomo.
+- O cursor é um `<rect class="cursor">` inserido diretamente no SVG do VexFlow via
+  `createElementNS` (`ScoreView.tsx`), fora do alcance do CSS Modules — por isso a classe é a
+  string literal `'cursor'`, nunca `styles.cursor` (que seria `undefined`, já aconteceu: um cursor
+  sem classe nenhuma herda `fill: currentColor` de `.canvas svg` e pinta um retângulo opaco enorme
+  em vez de um destaque translúcido). O CSS correspondente vive atrás de `:global(.cursor)` em
+  `ScoreView.module.css`.
+- `usePlayback` e `synth.ts` não têm testes unitário/de componente — mesmo padrão de
+  `useMicrophone` (Tarefa 4): `AudioContext` não existe em `jsdom`. Só as funções puras de
+  `@/lib/playback` (`scoreToEvents`, `mergeTiedNotes`, `midiToFrequency`, `metronomeEvents`) têm
+  teste; verificação manual da reprodução em navegador é obrigatória antes de dar a tarefa por
+  concluída.
+
+## Exportação (Tarefa 15)
+
+- Todos os exportadores consomem exclusivamente o `ScoreDocument` (mais o SVG renderizado, no caso
+  de PNG e PDF); proibido exportar a partir de `NoteEvent[]`, `QuantizedNote[]` ou de qualquer
+  estado intermédio — o ficheiro exportado tem de corresponder sempre ao que está no ecrã.
+- MusicXML e MIDI são gerados por funções puras em `@/lib/export`; proibido usar `XMLSerializer`,
+  `DOMParser` ou qualquer API do DOM nesses geradores. Tudo o que toca no DOM (SVG→PNG/PDF,
+  partilha) vive em `@/features/export`.
+- Todo o texto inserido no MusicXML passa por `escapeXml`; todo o nome de ficheiro passa por
+  `sanitizeFilename`.
+- O SVG leva os estilos embutidos antes de ser serializado para PNG ou PDF (`embedSvgColors`); sem
+  isso a imagem sai sem cores nem tipos de letra. Isso inclui três coisas, todas necessárias:
+  cor (`fill`/`stroke` explícitos, porque `currentColor` vem de CSS externo ao SVG),
+  `font-family` em cada `<text>`, e conversão do `font-size` de `pt` para `px`.
+- **`font-size` em `pt` tem de ser convertido para px na exportação**: o VexFlow escreve
+  `font-size="30pt"`, mas o `toPixels` do `svg2pdf.js` só entende `em`, `px` e números sem unidade —
+  em `pt` devolve `0`, e texto a tamanho zero não desenha nada. O sintoma é um PDF com pentagrama,
+  hastes e ligaduras (caminhos) mas sem claves nem cabeças de nota (texto). Não remover
+  `normalizeFontSize` de `embedSvgColors`.
+- O PDF preserva vetores (`svg2pdf.js`); proibido embutir a pauta como imagem rasterizada.
+- O PNG é rasterizado com `canvg`, não com `Image` + `drawImage`: um SVG carregado por
+  `<img src="blob:…">` fica num documento isolado que não vê os tipos de letra registados em
+  `document.fonts`, e as notas saem como caixas vazias. O `<canvas>` do `canvg` vive no documento
+  principal e tem acesso normal a eles. Passar sempre `ignoreDimensions: true` ao `render` — sem
+  isso o `canvg` repõe o tamanho do canvas e perde-se a resolução 2×.
+- Bravura e Academico estão vendorizados em `src/features/export/fonts/*.ttf` e importados com
+  `?inline` (data URI). Não pedir tipos de letra à CDN do VexFlow em runtime: a app não fala com a
+  rede (`NETWORK_ALLOWLIST`), pela mesma razão que o modelo Basic Pitch está em `public/models/`.
+  São `.ttf` e não os `.otf` oficiais porque o módulo de fontes do `jsPDF` não embute contornos CFF;
+  foram convertidos uma vez com `fontTools`/`cu2qu` ao preparar a Tarefa 15 — não regenerar dentro
+  da app.
+- A partilha é decidida por deteção de capacidade (`navigator.canShare`), nunca por _user agent_,
+  com download como alternativa. Um `AbortError` (utilizador cancelou a partilha) não cai para
+  download — seria surpreendente descarregar um ficheiro depois de cancelar o envio dele.
+- O MIDI usa 480 _ticks_ por semínima e o MusicXML usa `divisions` 480, a mesma unidade interna da
+  quantização — não converter unidades de tempo na exportação.
+- Não instalar bibliotecas para gerar MusicXML ou MIDI; ambos os formatos são escritos à mão neste
+  projeto. `jspdf`/`svg2pdf.js`/`canvg` são a exceção deliberada, só para PDF e PNG, e entram sempre
+  por `import()` dinâmico — nenhuma delas pode aparecer no bundle inicial (confirmado no build: são
+  chunks à parte de `index-*.js`).
+- Notas ligadas fundem-se num só evento MIDI (`note on`/`note off` com a duração somada), tal como
+  na reprodução (Tarefa 14) — nunca um `note on` repetido por cada parte da ligadura.
+- `toMusicXml` e `toMidi` são determinísticos: `encoding-date` vem de `metadata.createdAt`, nunca de
+  `new Date()`. Exportar o mesmo documento duas vezes tem de dar exatamente o mesmo ficheiro.
+- Alterações aos exportadores exigem reverificação manual num programa de notação externo — XML bem
+  formado não prova que a música está correta.
+- **Falta a verificação da decisão 9 (abrir o MusicXML no MuseScore e o MIDI num reprodutor)** — não
+  foi possível nesta sessão por não haver software de notação instalado no ambiente. A verificação
+  feita foi estrutural (XML bem formado e com os campos certos, cabeçalho MIDI válido, PDF/PNG
+  inspecionados visualmente). Fazer a validação externa antes de confiar nos ficheiros.
 
 ## PWA e service worker (Tarefa 2)
 

@@ -1,4 +1,14 @@
-export { app, idle, processing, processingStage, recording, result } from './app'
+export {
+  app,
+  exportPanel,
+  idle,
+  notation,
+  playback,
+  processing,
+  processingStage,
+  recording,
+  result,
+} from './app'
 export {
   crash,
   fileErrors,

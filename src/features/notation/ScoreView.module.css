@@ -1,0 +1,66 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.zoomControl {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  min-height: 6rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.canvas {
+  display: inline-block;
+}
+
+/* As cores das notas/pentagrama vêm do próprio VexFlow (preto/branco fixos
+   por omissão) — herdar `currentColor` do texto do tema garante que o
+   pentagrama não fica preto sobre fundo escuro (Tarefa 13, Notas). */
+.canvas :global(svg) {
+  color: var(--color-text);
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 6rem;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.emptyTitle {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+/* Cursor de reprodução (Tarefa 14) — retângulo translúcido atrás da nota
+   atual; `:global` porque é inserido diretamente no SVG do VexFlow, fora do
+   alcance do CSS Modules. */
+.canvas :global(.cursor) {
+  fill: var(--color-accent);
+  opacity: 0.2;
+  rx: 4px;
+  pointer-events: none;
+}

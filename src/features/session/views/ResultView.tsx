@@ -1,9 +1,27 @@
-import { Alert, Button, IconButton, Input, Sheet } from '@/components'
-import { MinusIcon, PlusIcon } from '@/components/icons'
+import { useCallback, useRef } from 'react'
+import { Alert, Button, IconButton, Input, Sheet, Spinner, Toast } from '@/components'
+import {
+  MetronomeIcon,
+  MinusIcon,
+  PauseIcon,
+  PlayIcon,
+  PlusIcon,
+  StopIcon,
+} from '@/components/icons'
+import type { ExportFormat } from '@/features/export'
+import { useExport } from '@/features/export'
+import { ScoreView, usePlayback } from '@/features/notation'
+import { PLAYBACK } from '@/lib/playback/constants'
 import type { KeyMode, ScoreDocument } from '@/lib/types'
-import { result } from '@/strings'
-import { ResultPlaceholderScore } from './ResultPlaceholderScore'
+import { exportPanel, playback as playbackStrings, result } from '@/strings'
 import styles from './ResultView.module.css'
+
+const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
+  { format: 'musicxml', label: exportPanel.musicxml },
+  { format: 'midi', label: exportPanel.midi },
+  { format: 'png', label: exportPanel.png },
+  { format: 'pdf', label: exportPanel.pdf },
+]
 
 export interface ResultViewProps {
   document: ScoreDocument
@@ -24,9 +42,8 @@ export interface ResultViewProps {
 }
 
 /**
- * A pauta desenhada aqui é uma ilustração estática — ver
- * `ResultPlaceholderScore` e prompts/tasks/03-interface-minima.md, Notas. A
- * Tarefa 13 substitui-a pelo `ScoreDocument` desenhado a sério com VexFlow.
+ * A pauta é desenhada a sério com VexFlow desde a Tarefa 13 (`ScoreView`,
+ * `@/features/notation`) — substitui a ilustração estática da Tarefa 3.
  */
 export function ResultView({
   document: scoreDocument,
@@ -38,6 +55,14 @@ export function ResultView({
   const { bpm, source: tempoSource } = scoreDocument.tempo
   const { tonic, mode, source: keySource } = scoreDocument.key
   const { confidence } = scoreDocument.metadata
+  const playback = usePlayback(scoreDocument)
+
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const getSvgElement = useCallback(() => svgRef.current, [])
+  const handleSvgReady = useCallback((svg: SVGSVGElement | null) => {
+    svgRef.current = svg
+  }, [])
+  const exportApi = useExport(scoreDocument, getSvgElement)
 
   return (
     <div className={styles.container}>
@@ -49,8 +74,48 @@ export function ResultView({
       />
 
       <Sheet elevated padding="lg" className={styles.score}>
-        <ResultPlaceholderScore />
+        <ScoreView
+          document={scoreDocument}
+          cursor={playback.currentPosition}
+          onSvgReady={handleSvgReady}
+        />
       </Sheet>
+
+      <div className={styles.playback}>
+        <IconButton
+          icon={playback.isPlaying ? <PauseIcon /> : <PlayIcon />}
+          label={playback.isPlaying ? playbackStrings.pause : playbackStrings.play}
+          onClick={() => (playback.isPlaying ? playback.pause() : playback.play())}
+        />
+        <IconButton icon={<StopIcon />} label={playbackStrings.stop} onClick={playback.stop} />
+
+        <div className={styles.tempoControl}>
+          <IconButton
+            icon={<MinusIcon />}
+            label={playbackStrings.decreaseSpeed}
+            size="sm"
+            disabled={playback.speed <= PLAYBACK.MIN_SPEED}
+            onClick={() => playback.setSpeed(playback.speed - PLAYBACK.SPEED_STEP)}
+          />
+          <span className={styles.tempoValue}>{playback.speed.toFixed(2)}x</span>
+          <IconButton
+            icon={<PlusIcon />}
+            label={playbackStrings.increaseSpeed}
+            size="sm"
+            disabled={playback.speed >= PLAYBACK.MAX_SPEED}
+            onClick={() => playback.setSpeed(playback.speed + PLAYBACK.SPEED_STEP)}
+          />
+        </div>
+
+        <IconButton
+          icon={<MetronomeIcon />}
+          label={
+            playback.isMetronomeOn ? playbackStrings.metronomeOff : playbackStrings.metronomeOn
+          }
+          variant={playback.isMetronomeOn ? 'default' : 'ghost'}
+          onClick={playback.toggleMetronome}
+        />
+      </div>
 
       <p className={styles.confidence}>
         {result.confidenceLabel} {Math.round(confidence.overall * 100)}% ({result.confidenceNotes}{' '}
@@ -123,11 +188,27 @@ export function ResultView({
         <Button variant="secondary" onClick={onNewTranscription}>
           {result.newTranscription}
         </Button>
-        {/* TODO Tarefa 15: os cinco formatos reais de exportação. */}
-        <Button variant="secondary" disabled>
-          {result.export}
-        </Button>
+        {EXPORT_FORMATS.map(({ format, label }) => (
+          <Button
+            key={format}
+            variant="secondary"
+            disabled={exportApi.pending !== null}
+            onClick={() => exportApi.exportFormat(format)}
+          >
+            {exportApi.pending === format && <Spinner size="sm" />}
+            {label}
+          </Button>
+        ))}
       </div>
+
+      <Toast
+        open={exportApi.error !== null}
+        onOpenChange={(open) => {
+          if (!open) exportApi.dismissError()
+        }}
+        title={exportPanel.errorTitle}
+        description={exportPanel.errorBody}
+      />
     </div>
   )
 }
