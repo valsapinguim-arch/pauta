@@ -1,4 +1,5 @@
-import { Alert, Button, IconButton, Input, Sheet } from '@/components'
+import { useCallback, useRef } from 'react'
+import { Alert, Button, IconButton, Input, Sheet, Spinner, Toast } from '@/components'
 import {
   MetronomeIcon,
   MinusIcon,
@@ -7,11 +8,20 @@ import {
   PlusIcon,
   StopIcon,
 } from '@/components/icons'
+import type { ExportFormat } from '@/features/export'
+import { useExport } from '@/features/export'
 import { ScoreView, usePlayback } from '@/features/notation'
 import { PLAYBACK } from '@/lib/playback/constants'
 import type { KeyMode, ScoreDocument } from '@/lib/types'
-import { playback as playbackStrings, result } from '@/strings'
+import { exportPanel, playback as playbackStrings, result } from '@/strings'
 import styles from './ResultView.module.css'
+
+const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
+  { format: 'musicxml', label: exportPanel.musicxml },
+  { format: 'midi', label: exportPanel.midi },
+  { format: 'png', label: exportPanel.png },
+  { format: 'pdf', label: exportPanel.pdf },
+]
 
 export interface ResultViewProps {
   document: ScoreDocument
@@ -47,6 +57,13 @@ export function ResultView({
   const { confidence } = scoreDocument.metadata
   const playback = usePlayback(scoreDocument)
 
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const getSvgElement = useCallback(() => svgRef.current, [])
+  const handleSvgReady = useCallback((svg: SVGSVGElement | null) => {
+    svgRef.current = svg
+  }, [])
+  const exportApi = useExport(scoreDocument, getSvgElement)
+
   return (
     <div className={styles.container}>
       <Input
@@ -57,7 +74,11 @@ export function ResultView({
       />
 
       <Sheet elevated padding="lg" className={styles.score}>
-        <ScoreView document={scoreDocument} cursor={playback.currentPosition} />
+        <ScoreView
+          document={scoreDocument}
+          cursor={playback.currentPosition}
+          onSvgReady={handleSvgReady}
+        />
       </Sheet>
 
       <div className={styles.playback}>
@@ -167,11 +188,27 @@ export function ResultView({
         <Button variant="secondary" onClick={onNewTranscription}>
           {result.newTranscription}
         </Button>
-        {/* TODO Tarefa 15: os cinco formatos reais de exportação. */}
-        <Button variant="secondary" disabled>
-          {result.export}
-        </Button>
+        {EXPORT_FORMATS.map(({ format, label }) => (
+          <Button
+            key={format}
+            variant="secondary"
+            disabled={exportApi.pending !== null}
+            onClick={() => exportApi.exportFormat(format)}
+          >
+            {exportApi.pending === format && <Spinner size="sm" />}
+            {label}
+          </Button>
+        ))}
       </div>
+
+      <Toast
+        open={exportApi.error !== null}
+        onOpenChange={(open) => {
+          if (!open) exportApi.dismissError()
+        }}
+        title={exportPanel.errorTitle}
+        description={exportPanel.errorBody}
+      />
     </div>
   )
 }

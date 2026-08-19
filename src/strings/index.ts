@@ -1,5 +1,6 @@
 export {
   app,
+  exportPanel,
   idle,
   notation,
   playback,
