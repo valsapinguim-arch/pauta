@@ -5,8 +5,14 @@ import type { ScoreDocument } from '@/lib/types'
 import { notation } from '@/strings'
 import { drawScore } from './drawScore'
 import type { VexFlowModule } from './drawScore'
+import type { PlaybackCursor } from './usePlayback'
 import styles from './ScoreView.module.css'
 import { useElementSize } from './useElementSize'
+
+/** Margem à volta da nota destacada, em unidades do SVG (coincidem com
+ *  píxeis antes do `viewBox`/zoom escalar) — só o suficiente para não colar
+ *  ao desenho da nota. */
+const CURSOR_PADDING = 4
 
 /** Zoom em passos (decisão 6 da Tarefa 13) — não contínuo: um número fixo
  *  de níveis é suficiente e evita recalcular a cada pixel arrastado. */
@@ -47,6 +53,9 @@ function weakestConfidence(
 
 export interface ScoreViewProps {
   document: ScoreDocument
+  /** Nota atualmente a soar (Tarefa 14) — `undefined`/`null` fora de
+   *  reprodução, sem cursor nenhum desenhado. */
+  cursor?: PlaybackCursor | null | undefined
 }
 
 /**
@@ -54,11 +63,12 @@ export interface ScoreViewProps {
  * (decisão 9, guardrail em `AGENTS.md`); nunca o modifica — isso é a Tarefa
  * 17. Sem edição: notas desenhadas não respondem a cliques.
  */
-export function ScoreView({ document: scoreDocument }: ScoreViewProps) {
+export function ScoreView({ document: scoreDocument, cursor }: ScoreViewProps) {
   const [vf, setVf] = useState<VexFlowModule | null>(null)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
   const { ref: viewportRef, width: viewportWidth } = useElementSize<HTMLDivElement>()
   const canvasRef = useRef<HTMLDivElement | null>(null)
+  const cursorElRef = useRef<SVGRectElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -90,7 +100,55 @@ export function ScoreView({ document: scoreDocument }: ScoreViewProps) {
       svg.setAttribute('width', String(contentWidth * zoom))
       svg.setAttribute('height', String(totalHeight * zoom))
     }
+
+    // `drawScore` limpa o contentor a cada redesenho (Tarefa 13, decisão 4)
+    // — o cursor, se existia, foi destruído com o resto do SVG anterior.
+    cursorElRef.current = null
   }, [vf, scoreDocument, viewportWidth, zoom, hasNotes])
+
+  /* Posiciona o cursor (Tarefa 14, decisão 4) sobre o grupo `[data-measure]
+     [data-element]` correspondente (Tarefa 13, decisão 7) e mantém-no
+     visível com auto-scroll. Efeito próprio, separado do redesenho: corre a
+     cada nota nova sem repetir o trabalho caro do VexFlow. */
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const svg = canvas?.querySelector('svg')
+    if (!canvas || !svg) return
+
+    if (!cursor) {
+      cursorElRef.current?.remove()
+      return
+    }
+
+    const target = canvas.querySelector<SVGGElement>(
+      `[data-measure="${cursor.measureIndex + 1}"][data-element="${cursor.elementIndex}"]`,
+    )
+    if (!target) {
+      cursorElRef.current?.remove()
+      return
+    }
+
+    let cursorEl = cursorElRef.current
+    if (!cursorEl) {
+      cursorEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+      // Classe literal, não `styles.cursor`: este `<rect>` é criado com
+      // `createElementNS`, fora do JSX — o CSS Modules não o vê para
+      // gerar/hashar uma classe local, por isso a regra em
+      // `ScoreView.module.css` usa `:global(.cursor)` e o nome tem de bater
+      // certo aqui também.
+      cursorEl.setAttribute('class', 'cursor')
+      cursorElRef.current = cursorEl
+    }
+
+    const box = target.getBBox()
+    cursorEl.setAttribute('x', String(box.x - CURSOR_PADDING))
+    cursorEl.setAttribute('y', String(box.y - CURSOR_PADDING))
+    cursorEl.setAttribute('width', String(box.width + CURSOR_PADDING * 2))
+    cursorEl.setAttribute('height', String(box.height + CURSOR_PADDING * 2))
+    if (cursorEl.parentNode !== svg) svg.insertBefore(cursorEl, svg.firstChild)
+
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [cursor])
 
   if (!hasNotes) {
     return (

@@ -32,7 +32,8 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
                      partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
-                     /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes) —
+                     /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes);
+                     /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents) —
                      nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
                      (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
@@ -487,6 +488,55 @@ currentColor; stroke: currentColor }`), a sobrepor o preto fixo que o VexFlow de
   técnico desta tarefa pedia para os afinar contra áudio real, mas esta sessão não teve acesso a
   microfone nem a gravações reais para o fazer. Afinar assim que houver gravações reais disponíveis,
   ouvindo o resultado como músico, não só a olhar para o código.
+
+## Reprodução (Tarefa 14)
+
+- A reprodução sintetiza o `ScoreDocument`; nunca reproduz o áudio original — o objetivo é
+  verificar a transcrição, não ouvir a gravação.
+- O agendamento de notas usa exclusivamente o relógio do `AudioContext` (`currentTime` +
+  `start(when)`); proibido `setTimeout`/`setInterval` para agendar som. Um `setInterval`
+  (`PLAYBACK.SCHEDULER_INTERVAL_MS`, `usePlayback.ts`) é permitido só para decidir QUANDO verificar
+  se há mais eventos a agendar (o clássico agendador de janela de antecipação) — o instante de cada
+  nota vem sempre de `audioContext.currentTime`, nunca do temporizador.
+- O cursor é animado com `requestAnimationFrame` lendo `audioContext.currentTime`; proibido mover o
+  cursor a partir de temporizadores ou de contagem de notas tocadas.
+- Notas unidas por ligadura de prolongação tocam como um único som (`mergeTiedNotes`,
+  `@/lib/playback`); proibido tocar cada parte separadamente.
+- `stop()` desliga e desconecta todos os osciladores agendados, incluindo os agendados para o
+  futuro (`disconnectScheduledNode`, `@/features/notation/synth.ts`); nenhuma nota toca depois de
+  parar.
+- O `AudioContext` de reprodução é distinto do de captura (Tarefa 4) e é criado dentro de um gesto
+  do utilizador (`audioContextRef.current ??= new AudioContext()`, dentro de `play()`) — nunca antes,
+  para não ficar suspenso em iOS.
+- O controlo de velocidade altera durações, nunca frequências — `scoreToEvents(scoreDocument,
+speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não recebe `speed`.
+- Metrónomo desligado por omissão.
+- A reprodução para automaticamente quando o `ScoreDocument` muda (edição, BPM, tonalidade) —
+  comparação por referência em `usePlayback` (`ScoreDocument` é sempre reconstruído, nunca mutado,
+  Tarefa 12 decisão 8), nunca por um `deepEqual`.
+- Não adicionar samples de instrumento nem bibliotecas de síntese (Tone.js) — o orçamento de bundle
+  está comprometido com o modelo e o VexFlow. Só osciladores nativos do Web Audio
+  (`@/features/notation/synth.ts`): onda triangular para notas, quadrada curta para o clique do
+  metrónomo.
+- Posição da reprodução guardada como proporção do total (`positionRatioRef`, 0 a 1), nunca em
+  segundos absolutos — como a `speed` já está "cozinhada" dentro dos eventos de
+  `scoreToEvents`/`metronomeEvents`, a proporção continua válida depois de uma mudança de
+  velocidade a meio, sem conversão nenhuma.
+- `metronomeEvents(tempo, durationSec)` não recebe `speed`; quem agenda (`usePlayback`) escala o
+  clique passando `{ ...tempo, bpm: tempo.bpm * speed }` — multiplicar o `bpm` pela velocidade
+  produz exatamente os mesmos instantes que dividir o tempo por ela, sem duplicar a lógica de escala
+  entre notas e metrónomo.
+- O cursor é um `<rect class="cursor">` inserido diretamente no SVG do VexFlow via
+  `createElementNS` (`ScoreView.tsx`), fora do alcance do CSS Modules — por isso a classe é a
+  string literal `'cursor'`, nunca `styles.cursor` (que seria `undefined`, já aconteceu: um cursor
+  sem classe nenhuma herda `fill: currentColor` de `.canvas svg` e pinta um retângulo opaco enorme
+  em vez de um destaque translúcido). O CSS correspondente vive atrás de `:global(.cursor)` em
+  `ScoreView.module.css`.
+- `usePlayback` e `synth.ts` não têm testes unitário/de componente — mesmo padrão de
+  `useMicrophone` (Tarefa 4): `AudioContext` não existe em `jsdom`. Só as funções puras de
+  `@/lib/playback` (`scoreToEvents`, `mergeTiedNotes`, `midiToFrequency`, `metronomeEvents`) têm
+  teste; verificação manual da reprodução em navegador é obrigatória antes de dar a tarefa por
+  concluída.
 
 ## PWA e service worker (Tarefa 2)
 
