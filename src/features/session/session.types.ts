@@ -66,6 +66,13 @@ export type SessionAction =
   /** Correção de BPM (Tarefa 9), de tonalidade (Tarefa 11) ou edição manual
    *  (Tarefa 17): substitui o documento sem repetir a inferência. */
   | { type: 'result/replace'; document: ScoreDocument }
+  /** Abrir uma transcrição a partir da biblioteca local (Tarefa 16) — entra
+   *  direto em `result`, sem gravar nem processar. `notes: []` porque a
+   *  biblioteca guarda só o `ScoreDocument`, nunca o áudio nem as
+   *  `NoteEvent[]` de origem (decisão 4); a correção manual de BPM não as
+   *  usa hoje (ver `applyManualBpm`), e um documento aberto da biblioteca
+   *  não pode voltar a ser re-transcrito de qualquer forma. */
+  | { type: 'library/open'; document: ScoreDocument }
   | { type: 'fail'; code: string; recoverable: boolean }
   | { type: 'cancel' }
   | { type: 'reset' }

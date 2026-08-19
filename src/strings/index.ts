@@ -2,6 +2,7 @@ export {
   app,
   exportPanel,
   idle,
+  library,
   notation,
   playback,
   processing,

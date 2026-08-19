@@ -112,3 +112,45 @@ export function MinusIcon(props: IconProps) {
     </svg>
   )
 }
+
+/** Biblioteca local (Tarefa 16) — acesso a partir do cabeçalho, eliminação
+ *  e voltar ao ecrã principal. */
+export function LibraryIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 19.5V4.5A1.5 1.5 0 0 1 5.5 3H9v18H5.5A1.5 1.5 0 0 1 4 19.5Z" />
+      <path d="M9 3h9.5A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5H9" />
+      <line x1="13" y1="7" x2="16" y2="7" />
+      <line x1="13" y1="11" x2="16" y2="11" />
+    </svg>
+  )
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 7h16" />
+      <path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" />
+      <path d="M6 7l1 13.5A1.5 1.5 0 0 0 8.5 22h7a1.5 1.5 0 0 0 1.5-1.5L18 7" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  )
+}
+
+export function PencilIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 20h4L18.5 9.5a2.121 2.121 0 0 0-3-3L5 17v3Z" />
+      <line x1="14" y1="7" x2="17" y2="10" />
+    </svg>
+  )
+}
+
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 5 8 12l7 7" />
+    </svg>
+  )
+}

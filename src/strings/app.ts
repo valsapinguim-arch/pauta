@@ -148,6 +148,50 @@ export const exportPanel = {
   errorBody: 'Tenta outra vez — se persistir, tenta um dos outros formatos.',
 } as const
 
+/** Biblioteca local (Tarefa 16) — `LibraryView`, via `useLibrary` e
+ *  `useLibraryAutosave`. */
+export const library = {
+  openButton: 'Biblioteca',
+  closeButton: 'Fechar biblioteca',
+  title: 'Biblioteca',
+
+  /** Decisão 10: sempre visível, nunca atrás de ajuda. */
+  localStorageNotice:
+    'As transcrições ficam guardadas só neste dispositivo. Limpar os dados do browser apaga-as — para as guardar a sério, exporta-as.',
+
+  emptyTitle: 'Ainda não há nada guardado',
+  emptyBody: 'As transcrições ficam aqui automaticamente assim que gravares uma.',
+
+  loading: 'A carregar…',
+
+  open: 'Abrir',
+  rename: 'Renomear',
+  renameLabel: 'Novo título',
+  renameConfirm: 'Guardar',
+  renameCancel: 'Cancelar',
+  remove: 'Eliminar',
+
+  /** Confirmação de eliminação (Âmbito técnico) — mesmo padrão do
+   *  explicador de permissão em `IdleView`, sem diálogo modal novo. */
+  removeConfirmTitle: 'Eliminar esta transcrição?',
+  removeConfirmBody: 'Não é possível desfazer. Exporta primeiro se quiseres guardá-la.',
+  removeConfirmAction: 'Eliminar',
+  removeCancelAction: 'Cancelar',
+
+  /** Registo com `schemaVersion` de uma versão mais recente da app —
+   *  decisão 7. Só pode ser eliminado, nunca aberto. */
+  illegibleTitle: 'Transcrição ilegível',
+  illegibleBody: 'Foi guardada por uma versão mais recente da app e não pode ser aberta aqui.',
+
+  /** Falha de escrita (decisão 8) — o resultado continua no ecrã, só não
+   *  ficou guardado. */
+  saveErrorTitle: 'Não foi possível guardar',
+  saveErrorBody: 'A transcrição continua visível no ecrã, mas a alteração não ficou guardada.',
+
+  quotaWarningTitle: 'Armazenamento quase cheio',
+  quotaWarningBody: 'Exporta e elimina transcrições antigas para libertar espaço.',
+} as const
+
 /** Textos de `@/features/notation/ScoreView` — Tarefa 13. */
 export const notation = {
   /** Documento sem notas nenhumas — nunca um pentagrama vazio (decisão 9,

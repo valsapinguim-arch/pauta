@@ -46,6 +46,7 @@ const actions = {
   'processing/advance': { type: 'processing/advance', stage: 'analysing', progress: 0.9 },
   'processing/done': { type: 'processing/done', document: doc, notes },
   'result/replace': { type: 'result/replace', document: doc },
+  'library/open': { type: 'library/open', document: doc },
   cancel: { type: 'cancel' },
 } satisfies Record<string, SessionAction>
 
@@ -64,6 +65,7 @@ const expected: Record<
     'processing/advance': null,
     'processing/done': null,
     'result/replace': null,
+    'library/open': 'result',
     cancel: null,
   },
   recording: {
@@ -74,6 +76,7 @@ const expected: Record<
     'processing/advance': null,
     'processing/done': null,
     'result/replace': null,
+    'library/open': null,
     cancel: 'idle',
   },
   processing: {
@@ -84,6 +87,7 @@ const expected: Record<
     'processing/advance': 'processing',
     'processing/done': 'result',
     'result/replace': null,
+    'library/open': null,
     cancel: 'idle',
   },
   result: {
@@ -94,6 +98,7 @@ const expected: Record<
     'processing/advance': null,
     'processing/done': null,
     'result/replace': 'result',
+    'library/open': 'result',
     cancel: null,
   },
   error: {
@@ -104,6 +109,7 @@ const expected: Record<
     'processing/advance': null,
     'processing/done': null,
     'result/replace': null,
+    'library/open': 'result',
     cancel: null,
   },
 }
@@ -202,6 +208,11 @@ describe('sessionReducer', () => {
       const otherDoc: ScoreDocument = { ...doc, tempo: { ...doc.tempo, bpm: 140 } }
       const after = sessionReducer(states.result, { type: 'result/replace', document: otherDoc })
       expect(after).toEqual({ status: 'result', document: otherDoc, notes })
+    })
+
+    it('abrir da biblioteca entra em resultado sem notas de origem (Tarefa 16, decisão 4)', () => {
+      const after = sessionReducer(states.idle, { type: 'library/open', document: doc })
+      expect(after).toEqual({ status: 'result', document: doc, notes: [] })
     })
   })
 

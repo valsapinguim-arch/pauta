@@ -28,17 +28,23 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   /src/features/session/views/ → as 5 views do ecrã principal (Tarefa 3)
   /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa);
                      /src/features/export/fonts/ → Bravura/Academico em .ttf, vendorizados para o
-                     PDF (Tarefa 15) — não são os ícones PWA nem assets de UI
-  /src/components/ → inventário fechado de 8 (Button, IconButton, Sheet, Progress, Alert, Spinner,
-                     Toast, Input — Tarefa 12) + icons/ e cx.ts (suporte, fora do inventário)
+                     PDF (Tarefa 15) — não são os ícones PWA nem assets de UI;
+                     /src/features/library/ → biblioteca local em IndexedDB (Tarefa 16, ex.: db.ts,
+                     repository.ts, useLibraryAutosave.ts) — `db.ts` e `repository.ts` são os únicos
+                     ficheiros do repositório que importam `idb`
+  /src/components/ → inventário fechado de 9 (Button, IconButton, Sheet, Progress, Alert, Spinner,
+                     Toast, Input, List — Tarefas 12 e 16) + icons/ e cx.ts (suporte, fora do
+                     inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
                      partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
                      /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes);
                      /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents);
-                     /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi) —
-                     nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
-                     (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
+                     /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi);
+                     /src/lib/migrations/ → migração de `ScoreDocument` persistido por
+                     `schemaVersion` (Tarefa 16, ex.: migrateDocument) — nenhuma pasta de @/lib tem
+                     `index.ts`; importa-se sempre o ficheiro concreto (ex.: `@/lib/notes/cleanNotes`),
+                     nunca um barrel
   /src/styles/     → tokens
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
@@ -592,6 +598,65 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   feita foi estrutural (XML bem formado e com os campos certos, cabeçalho MIDI válido, PDF/PNG
   inspecionados visualmente). Fazer a validação externa antes de confiar nos ficheiros.
 
+## Biblioteca local (Tarefa 16)
+
+- Persistência usa IndexedDB via `idb`; proibido `localStorage`/`sessionStorage` para dados de
+  transcrição. (Um sinalizador de UI sem dados de transcrição — ex.: "já mostrámos este aviso" — não
+  é abrangido por esta regra; `useInstallPrompt`, Tarefa 3, já usa `localStorage` assim.)
+- Guarda-se apenas o `ScoreDocument`; proibido persistir áudio, PCM ou qualquer forma da gravação
+  original em IndexedDB, Cache API ou em qualquer outro sítio.
+- Todo o acesso ao IndexedDB passa por `@/features/library/repository.ts`; proibido abrir a base de
+  dados ou criar transações noutro módulo. `@/features/library/db.ts` é o único ficheiro que chama
+  `openDB` — `repository.ts` é o único que o importa.
+- `repository.save()` e `repository.update()` chamam `validateScoreDocument` antes de tocar no
+  IndexedDB e deixam a exceção subir tal e qual; nunca persistir um documento inválido (era um
+  requisito explícito do plano desta tarefa, não uma decisão tomada agora).
+- Toda a leitura de um documento persistido passa por `migrateDocument` (`@/lib/migrations`), que
+  trata versões inferiores e marca versões superiores como ilegíveis; um registo ilegível nunca
+  impede a lista de carregar — `repository.list()`/`get()` devolvem sempre a entrada, com
+  `result.legible === false`, em vez de lançar ou omitir.
+- As migrações de documento vivem em `@/lib/migrations` e são funções puras; qualquer alteração a
+  `ScoreDocument` (`@/lib/types`) incrementa `SCHEMA_VERSION` e acrescenta a entrada correspondente a
+  `MIGRATIONS` em `migrateDocument.ts` na mesma alteração de código — `SCHEMA_VERSION` sem migração
+  para lá chegar é o cenário exato que o registo "superior" existe para apanhar quando alguém se
+  esquece.
+- Uma transcrição concluída é guardada automaticamente (`useLibraryAutosave`, ligado em `App.tsx`);
+  correções e edições atualizam o mesmo registo com _debounce_ (`UPDATE_DEBOUNCE_MS`) em vez de
+  criar um novo. O `id` do registo atual vive numa ref, nunca em estado — não o duplicar nem o subir
+  para `sessionReducer` (a sessão não sabe nada sobre a biblioteca, e é bom que continue assim).
+- **A gravação inicial tem de ser deduplicada contra reentrância do próprio efeito** — o StrictMode
+  do React em desenvolvimento corre um efeito, o seu _cleanup_, e o efeito outra vez, antes da
+  primeira `save()` assíncrona terminar; sem uma promessa partilhada (`pendingSaveRef` em
+  `useLibraryAutosave`) cada uma das duas invocações chama `save()`, e cada uma tem o seu próprio
+  `crypto.randomUUID()` — duplica silenciosamente o registo. Verificado ao vivo (`?state=result`,
+  contagem de registos no IndexedDB antes/depois da correção). Não remover `pendingSaveRef` nem
+  voltar a um `cancelled` local por invocação — esse padrão (usado no resto da app para efeitos que
+  só leem, nunca escrevem) não chega aqui.
+- Falha de escrita por quota (ou qualquer outra) nunca é silenciosa: `LibrarySaveError` sobe da
+  `repository`, `useLibraryAutosave` mostra-a como `saveError`, e o resultado permanece visível no
+  ecrã — só não fica guardado.
+- Abrir uma transcrição da biblioteca (`session.openDocument`, ação `library/open` no
+  `sessionReducer`) entra direto em `result` com `notes: []` — a biblioteca nunca guardou
+  `NoteEvent[]` (decisão 4: só o `ScoreDocument`), por isso não há nada para repor aí. Quem abre tem
+  de chamar `useLibraryAutosave().associate(id, document)` ANTES de `session.openDocument` (mesmo
+  clique, síncrono) — sem isso o efeito de gravação automática trata o documento aberto como uma
+  transcrição nova e cria um duplicado.
+- A biblioteca é um estado de ecrã em `App.tsx` (`showLibrary`), não uma rota nem um estado de
+  `sessionReducer` — a sessão (gravar → processar → resultado) e a biblioteca são máquinas de estado
+  independentes que só se tocam via `openDocument`/`associate`.
+- O botão "voltar" (físico ou gesto, Android) fecha a biblioteca em vez de sair da app: abrir a
+  biblioteca empurra uma entrada no `history` do browser; o "voltar" do sistema dispara `popstate`,
+  que fecha a biblioteca; o botão de fechar dentro da própria view consome essa entrada com
+  `history.back()` em vez de a deixar pendurada — os dois caminhos convergem no mesmo `popstate`, não
+  há lógica de fecho duplicada. **Não verificado num dispositivo Android real** — este ambiente não
+  tem um; a engenharia via History API foi o que deu para fazer sem ele. Confirmar num Android real
+  antes de assumir a decisão 11 fechada.
+- A lista mostra sempre o aviso de armazenamento local (`library.localStorageNotice`) — mesma regra
+  do aviso de instrumento único da Tarefa 3: nunca atrás de ajuda, nunca só depois de perder algo.
+- `List`/`ListItem` (`@/components/List`) é o nono componente do inventário fechado (Tarefa 3,
+  decisão 2) — justificação: a biblioteca é a primeira coleção de tamanho variável do plano; a lista
+  de formatos de exportação (Tarefa 15) usa `Button` porque são quatro ações fixas.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
@@ -629,11 +694,11 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   opção de configuração, verificar se o fluxo principal (gravar → ver pauta → exportar) fica
   mesmo melhor com ele. A resposta por omissão é não.
 - Inventário de componentes fechado: `Button`, `IconButton`, `Sheet`, `Progress`, `Alert`,
-  `Spinner`, `Toast` (`src/components/`, cada um com `index.ts` + `.types.ts` + `.module.css` +
-  `.test.tsx`). Acrescentar um oitavo exige justificação escrita na tarefa que o introduz — a
-  Tarefa 16 provavelmente precisa de uma `List`, a Tarefa 17 de um controlo de seleção, e é lá que
-  se decide, não antes. `icons/` e `cx.ts` não contam para este inventário: são suporte (glifos e um
-  utilitário de classes), não primitivas de interação com opinião de design própria.
+  `Spinner`, `Toast`, `Input`, `List` (`src/components/`, cada um com `index.ts` + `.types.ts` +
+  `.module.css` + `.test.tsx`). Acrescentar um décimo exige justificação escrita na tarefa que o
+  introduz — a Tarefa 17 provavelmente precisa de um controlo de seleção, e é lá que se decide, não
+  antes. `icons/` e `cx.ts` não contam para este inventário: são suporte (glifos e um utilitário de
+  classes), não primitivas de interação com opinião de design própria.
 - Não introduzir bibliotecas de componentes (MUI, Chakra, shadcn) nem frameworks de CSS (Tailwind,
   styled-components) — CSS Modules + tokens é a única abordagem de estilo. Radix (pacote unificado
   `radix-ui`) só entra onde há acessibilidade não trivial a resolver (hoje: só `Toast`); um `<button>`
