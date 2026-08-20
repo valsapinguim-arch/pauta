@@ -373,6 +373,29 @@ reduceToMonophonic → filterByDuration → filterByAmplitude → computeConfide
   andamento é informação que o utilizador vê.
 - O andamento é constante por peça; se algum dia houver variação, estende-se `TempoMap` com
   secções em vez de mudar as assinaturas a jusante.
+- **Anacruse (decisão 8 da Tarefa 9, revista)** — a decisão original era não a detetar de todo, com
+  o argumento de que "uma tentativa de adivinhar que falhe" é pior do que assumir sempre que a
+  música começa no tempo forte. Testar com gravações reais mostrou que começar com uma nota de
+  preparação desloca TODAS as barras de compasso, e não havia recurso nenhum. Passa a detetar-se em
+  `@/lib/tempo/estimateDownbeat.ts`, mas o receio original é o que governa o desenho:
+  - Só o caminho `detected` procura fase; com BPM assumido a grelha não significa nada.
+  - Só age com margem clara (`TEMPO.DOWNBEAT_MIN_CONFIDENCE`); em qualquer dúvida devolve
+    `pickupBeats: 0`, que é exatamente o comportamento anterior. **Falhar para o lado do que já se
+    fazia é o único modo de falha aceitável aqui.**
+  - Não subir `DOWNBEAT_MIN_CONFIDENCE` à espera de mais certeza: ~0,5 é um teto estrutural em 4/4
+    (a hipótese rival põe os tempos fortes no tempo 3, que vale metade), não um alvo. Os valores
+    medidos estão documentados na constante.
+- A anacruse é aplicada recuando `firstBeatSec` para o início do compasso que a contém, nunca
+  pondo o tempo forte depois da primeira nota — isso daria ticks negativos, um `measureIndex` de
+  `-1` e `validateMeasureSums` a rebentar (nada a jusante trata ticks negativos). Assim a anacruse
+  fica escrita como um primeiro compasso completo com pausas à cabeça (`fillRests` gera-as
+  sozinho), todo o compasso continua a somar `MEASURE_TICKS`, e os tempos de reprodução das notas
+  não mudam — `scoreToEvents` faz `firstBeatSec + tick × segundosPorTick`, e recuar a origem em Δ
+  faz o tick avançar exatamente Δ. Só o metrónomo se desloca, para os tempos fortes certos.
+- **Não há controlo manual para corrigir a anacruse** (ao contrário do BPM e da tonalidade). É por
+  isso que os limiares acima são conservadores. Se alguém acrescentar esse controlo, os campos vão
+  ter de entrar em `TempoMap` — o que obriga a subir `SCHEMA_VERSION` e escrever a migração
+  correspondente (`@/lib/migrations`).
 - O controlo de BPM em `ResultView` usa um par de `IconButton` (+/-), não um `Input` — a Tarefa 3
   fechou o inventário de componentes em sete e este não introduz um oitavo; só reconsiderar com
   justificação escrita numa tarefa futura que precise mesmo de entrada de texto livre.

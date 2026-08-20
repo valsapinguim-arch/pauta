@@ -146,6 +146,29 @@ describe('quantize', () => {
     expect(quantize([], tempoMap)).toEqual({ notes: [], rhythmConfidence: 0 })
   })
 
+  it('com anacruse, a primeira nota cai depois do tick 0 e é precedida de pausas', () => {
+    /* `buildTempoMap` recua `firstBeatSec` quando deteta anacruse (Tarefa 9,
+       decisão 8 revista) — aqui simula-se isso diretamente: uma anacruse de
+       1 tempo em 4/4 significa uma origem 3 tempos antes da primeira nota.
+       O que este teste protege é o lado do `quantize`: ticks positivos,
+       pausas iniciais automáticas (`fillRests`) e compassos que continuam a
+       somar certo. Sem o recuo, pôr o tempo forte DEPOIS da primeira nota
+       daria ticks negativos e um "compasso -1" a rebentar a validação. */
+    const beat = 0.5
+    const pickupTempoMap: TempoMap = { ...tempoMap, firstBeatSec: -3 * beat }
+    const notes = [note(0, 0.5), note(0.5, 0.5), note(1, 0.5), note(1.5, 0.5)]
+
+    const result = quantize(notes, pickupTempoMap)
+
+    const firstReal = result.notes.find((n) => !n.isRest)
+    expect(firstReal?.startTick).toBe(3 * QUANTIZE.BEAT_TICKS)
+    expect(result.notes[0]?.isRest).toBe(true)
+    for (const n of result.notes) expect(n.startTick).toBeGreaterThanOrEqual(0)
+    for (const sum of measureSums(result.notes).values()) {
+      expect(sum).toBe(QUANTIZE.MEASURE_TICKS)
+    }
+  })
+
   it('uma nota que fica com figura de semicorchea pontuada não deixa a soma por figura desalinhada da soma real (bug real, Tarefa 21)', () => {
     // Encontrado com uma gravação real: `nearestNoteDuration` escolhe
     // semicorchea pontuada (180 ticks) para a primeira nota — a única
