@@ -133,8 +133,14 @@ export function drawScore(
   const pendingTies: {
     firstNote: InstanceType<VexFlowModule['StaveNote']>
     lastNote: InstanceType<VexFlowModule['StaveNote']>
+    /** Ligadura entre notas desenhadas em linhas diferentes — desenha-se em
+     *  duas metades, não como uma reta entre pautas (ver abaixo). */
+    acrossLineBreak: boolean
   }[] = []
-  let openTieNote: InstanceType<VexFlowModule['StaveNote']> | null = null
+  let openTie: {
+    note: InstanceType<VexFlowModule['StaveNote']>
+    lineIndex: number
+  } | null = null
 
   lines.forEach((line, lineIndex) => {
     let x = MARGIN_LEFT
@@ -192,15 +198,19 @@ export function drawScore(
         group?.setAttribute('data-element', String(elementIndex))
 
         // Ligaduras (decisão 7 da Tarefa 10): liga cada par consecutivo de
-        // notas ligadas, mesmo através de uma quebra de sistema — as duas
-        // StaveNote já têm posição final (foram desenhadas acima). Uma nota
-        // `continue` fecha o segmento anterior E abre o seguinte.
-        if (plan.isTieCloser[elementIndex] && openTieNote !== null) {
-          pendingTies.push({ firstNote: openTieNote, lastNote: note })
-          openTieNote = null
+        // notas ligadas — as duas StaveNote já têm posição final (foram
+        // desenhadas acima). Uma nota `continue` fecha o segmento anterior
+        // E abre o seguinte.
+        if (plan.isTieCloser[elementIndex] && openTie !== null) {
+          pendingTies.push({
+            firstNote: openTie.note,
+            lastNote: note,
+            acrossLineBreak: openTie.lineIndex !== lineIndex,
+          })
+          openTie = null
         }
         if (plan.isTieOpener[elementIndex]) {
-          openTieNote = note
+          openTie = { note, lineIndex }
         }
       })
 
@@ -208,15 +218,23 @@ export function drawScore(
     })
   })
 
-  pendingTies.forEach(({ firstNote, lastNote }) => {
-    new vf.StaveTie({
-      firstNote,
-      lastNote,
-      firstIndexes: [0],
-      lastIndexes: [0],
-    })
-      .setContext(context)
-      .draw()
+  pendingTies.forEach(({ firstNote, lastNote, acrossLineBreak }) => {
+    if (!acrossLineBreak) {
+      new vf.StaveTie({ firstNote, lastNote, firstIndexes: [0], lastIndexes: [0] })
+        .setContext(context)
+        .draw()
+      return
+    }
+
+    /* Ligadura que atravessa uma quebra de sistema: desenha-se em DUAS
+       metades — uma que sai pela direita da primeira pauta, outra que entra
+       pela esquerda da segunda. Ligar as duas notas diretamente fazia o
+       VexFlow traçar uma reta na diagonal por cima da pauta toda, atravessando
+       o que estivesse pelo meio (bug real, visto numa sessão de testes com
+       gravações reais). Omitir uma das notas é o que diz ao VexFlow para
+       desenhar só a metade correspondente. */
+    new vf.StaveTie({ firstNote, firstIndexes: [0], lastIndexes: [0] }).setContext(context).draw()
+    new vf.StaveTie({ lastNote, firstIndexes: [0], lastIndexes: [0] }).setContext(context).draw()
   })
 
   return { totalHeight }

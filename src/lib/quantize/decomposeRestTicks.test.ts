@@ -4,6 +4,7 @@ import { ticksForNoteType } from './noteDurations'
 
 const BEAT_TICKS = 480 // semínima
 const MEASURE_TICKS = 1920 // 4/4
+const MIN_SUBDIVISION = 120 // semicolcheia — a grelha
 
 /** A duração real de cada pausa tem de bater sempre certo com a duração que
  *  a própria figura (`noteType`/`dots`) representa — é a mesma verificação
@@ -72,37 +73,23 @@ describe('decomposeRestTicks', () => {
     expect(cursor).toBe(2400)
   })
 
-  describe('correção de fase (bug real, Tarefa 21)', () => {
-    // `startTick=60` simula o fim de uma nota real que era uma semicorchea
-    // pontuada (180 ticks) a começar em 0 — a única figura da tabela que não
-    // é múltiplo de `MIN_SUBDIVISION_TICKS` (120), daí `startTick` cair fora
-    // da grelha (`endTick` de uma pausa é sempre o início de uma nota real,
-    // sempre alinhado — só `startTick` pode não estar).
+  describe('figura sempre exata (bug real, Tarefa 21)', () => {
+    // `validateScoreDocument` (Tarefa 12) soma cada compasso a partir da
+    // FIGURA de cada elemento, não do seu `durationTicks`. Uma pausa cuja
+    // figura não cubra exatamente a sua duração faz a validação rejeitar um
+    // documento cujas durações estão certas — era o que acontecia com
+    // gravações reais ("compasso N soma 1980, esperado 1920").
 
-    it('espaço desalinhado com folga usa a semicorchea pontuada para repor a fase logo no início', () => {
-      const rests = decomposeRestTicks(60, 960, BEAT_TICKS, MEASURE_TICKS)
-      expect(rests[0]).toMatchObject({ noteType: 'sixteenth', dots: 1, durationTicks: 180 })
-      expectDurationMatchesFigure(rests)
-      expect(rests.reduce((sum, r) => sum + r.durationTicks, 0)).toBe(900)
-    })
-
-    it('espaço desalinhado atravessa o tempo com a pontuada quando só o limite de tempo (não o de compasso) o impedia', () => {
-      // Em `cursor=420`, `ticksToNextBeat=60` — a pontuada (180) só cabe
-      // atravessando o tempo; antes da correção, o algoritmo guloso adiava
-      // a correção de fase e podia ficar sem espaço mais tarde.
-      const rests = decomposeRestTicks(420, 720, BEAT_TICKS, MEASURE_TICKS)
-      expect(rests[0]).toMatchObject({ noteType: 'sixteenth', dots: 1, durationTicks: 180 })
-      expect((rests[0]?.startTick ?? 0) + (rests[0]?.durationTicks ?? 0)).toBeGreaterThan(
-        BEAT_TICKS,
-      )
-      expectDurationMatchesFigure(rests)
-      expect(rests.reduce((sum, r) => sum + r.durationTicks, 0)).toBe(300)
-    })
-
-    it('espaço alinhado nunca escolhe a pontuada só por ser a maior que cabe (não haveria fase nenhuma a repor)', () => {
-      const rests = decomposeRestTicks(0, 600, BEAT_TICKS, MEASURE_TICKS)
-      expect(rests.some((r) => r.noteType === 'sixteenth' && r.dots === 1)).toBe(false)
-      expectDurationMatchesFigure(rests)
+    it('cobre exatamente qualquer espaço múltiplo da grelha, com figuras exatas', () => {
+      // Todo o espaço que esta função recebe em produção é um múltiplo da
+      // grelha — ver a invariante em `noteDurations.ts`.
+      for (let ticks = MIN_SUBDIVISION; ticks <= MEASURE_TICKS * 2; ticks += MIN_SUBDIVISION) {
+        for (const start of [0, MIN_SUBDIVISION, BEAT_TICKS, BEAT_TICKS + MIN_SUBDIVISION]) {
+          const rests = decomposeRestTicks(start, start + ticks, BEAT_TICKS, MEASURE_TICKS)
+          expectDurationMatchesFigure(rests)
+          expect(rests.reduce((sum, r) => sum + r.durationTicks, 0)).toBe(ticks)
+        }
+      }
     })
   })
 })

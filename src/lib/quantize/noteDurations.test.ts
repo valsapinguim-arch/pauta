@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { largestNoteDurationAtMost, nearestNoteDuration } from './noteDurations'
+import { QUANTIZE } from './constants'
+import { largestNoteDurationAtMost, nearestNoteDuration, NOTE_DURATIONS } from './noteDurations'
+
+describe('NOTE_DURATIONS', () => {
+  it('todas as figuras são múltiplos exatos da grelha (invariante, Tarefa 21)', () => {
+    // É esta invariante que mantém o sistema fechado: inícios na grelha +
+    // durações na grelha ⇒ todo o espaço entre notas é preenchível por
+    // pausas exatas. A semicolcheia pontuada (180) violava-a e foi
+    // removida — ver a nota no ficheiro. Reintroduzir uma figura fora da
+    // grelha traz de volta o "compasso N soma 1980, esperado 1920".
+    for (const duration of NOTE_DURATIONS) {
+      expect(duration.ticks % QUANTIZE.MIN_SUBDIVISION_TICKS).toBe(0)
+    }
+  })
+
+  it('está ordenada ascendentemente — as duas funções abaixo dependem disso', () => {
+    const ticks = NOTE_DURATIONS.map((d) => d.ticks)
+    expect([...ticks].sort((a, b) => a - b)).toEqual(ticks)
+  })
+})
 
 describe('nearestNoteDuration', () => {
   it('encontra a figura exata', () => {
