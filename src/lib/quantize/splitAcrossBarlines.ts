@@ -1,18 +1,17 @@
-import { nearestNoteDuration } from './noteDurations'
+import { decomposeNoteTicks } from './decomposeNoteTicks'
 import type { WorkingNote } from './workingNote'
 
 /**
  * Divide e liga uma nota que atravessa uma ou mais barras de compasso —
- * decisão 7, regra da notação, não escolha. Cada pedaço fica com o `tick`
- * exato onde cai (aritmética exata, nunca reencaixada na tabela de figuras)
- * para que a soma dos pedaços seja sempre igual à duração original; a
- * validação de soma de compasso em `quantize` depende disto.
+ * decisão 7, regra da notação, não escolha.
  *
- * `noteType`/`dots` de cada pedaço vêm de `nearestNoteDuration`, só para a
- * notação visual — na grelha de 1/16 com pontos, um pedaço raro (uma
- * semicorchea com ponto cortada num sítio desalinhado) pode não ter figura
- * exata; a duração real (`durationTicks`) continua correta, só a figura
- * mostrada é a mais próxima.
+ * Cada pedaço é depois decomposto em figuras EXATAS (`decomposeNoteTicks`),
+ * todas ligadas entre si: um pedaço de 600 ticks vira semínima + semicolcheia
+ * ligadas, não uma "semínima" que diz durar 600. A versão original guardava
+ * a duração exata e escolhia só a figura mais próxima para mostrar — o que
+ * mantinha a soma de `durationTicks` correta mas fazia
+ * `validateScoreDocument` (Tarefa 12, que soma as FIGURAS) rejeitar o
+ * documento. Bug real, reproduzido com gravações (Tarefa 21).
  *
  * Só opera sobre notas reais — chamar antes de `fillRests` (as pausas
  * nunca precisam de ligadura, `decomposeRestTicks` já respeita as barras).
@@ -28,31 +27,45 @@ export function splitAcrossBarlines(notes: WorkingNote[], measureTicks: number):
 }
 
 function splitNote(note: WorkingNote, measureTicks: number): WorkingNote[] {
+  if (note.isRest) return [note]
+
   const endTick = note.startTick + note.durationTicks
-  const startMeasure = Math.floor(note.startTick / measureTicks)
-  const lastOccupiedMeasure = Math.floor((endTick - 1) / measureTicks)
-
-  if (note.isRest || startMeasure === lastOccupiedMeasure) return [note]
-
   const pieces: WorkingNote[] = []
   let cursor = note.startTick
 
   while (cursor < endTick) {
     const distanceToBoundary = measureTicks - (cursor % measureTicks)
-    const pieceDuration = Math.min(endTick - cursor, distanceToBoundary)
-    const { noteType, dots } = nearestNoteDuration(pieceDuration)
+    const chunkDuration = Math.min(endTick - cursor, distanceToBoundary)
+    const figures = decomposeNoteTicks(chunkDuration)
 
-    pieces.push({
-      ...note,
-      startTick: cursor,
-      durationTicks: pieceDuration,
-      noteType,
-      dots,
-      tiedFromPrevious: cursor > note.startTick,
-      tiedToNext: cursor + pieceDuration < endTick,
-    })
+    // Resto menor do que a menor figura da tabela: não há como o notar, e
+    // insistir seria um ciclo infinito. Fica por preencher de propósito —
+    // `fillRests` cobre-o a seguir com uma pausa.
+    if (figures.length === 0) break
 
-    cursor += pieceDuration
+    for (const figure of figures) {
+      pieces.push({
+        ...note,
+        startTick: cursor,
+        durationTicks: figure.ticks,
+        noteType: figure.noteType,
+        dots: figure.dots,
+        // Preenchidas no fim: só aí se sabe quantos pedaços há ao todo.
+        tiedFromPrevious: false,
+        tiedToNext: false,
+      })
+      cursor += figure.ticks
+    }
+  }
+
+  if (pieces.length === 0) return []
+
+  // Uma nota só volta a ser "uma nota" pela ligadura: todos os pedaços
+  // menos o último ligam ao seguinte.
+  for (let i = 0; i < pieces.length; i += 1) {
+    const piece = pieces[i] as WorkingNote
+    piece.tiedFromPrevious = i > 0 || note.tiedFromPrevious
+    piece.tiedToNext = i < pieces.length - 1 || note.tiedToNext
   }
 
   return pieces

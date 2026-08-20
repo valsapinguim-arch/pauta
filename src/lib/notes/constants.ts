@@ -30,6 +30,16 @@ export const NOTE_CLEANUP = {
    *  modelo. */
   MIN_NOTE_DURATION_MS: 60,
 
+  /** Duas notas atacadas a menos disto uma da outra contam como SIMULTÂNEAS
+   *  (um acorde) para `reduceToMonophonic` — decisões 1 e 2.
+   *
+   *  Tem de ficar ABAIXO de `MIN_NOTE_DURATION_MS`: assim nunca funde duas
+   *  notas que ambas sobreviveriam como eventos separados, por mais rápida
+   *  que seja a passagem. É esse o critério do valor, não uma afinação
+   *  contra uma gravação específica — 50 ms é também o limiar perceptivo
+   *  habitual de simultaneidade. */
+  SIMULTANEOUS_ONSET_MS: 50,
+
   /** Fração da amplitude mediana das notas detetadas abaixo da qual uma nota
    *  é descartada (decisão 5) — relativa, nunca absoluta. */
   MIN_RELATIVE_AMPLITUDE: 0.25,

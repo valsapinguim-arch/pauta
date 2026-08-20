@@ -10,15 +10,30 @@ export interface NoteDuration {
 /**
  * Tabela canónica das figuras permitidas — Tarefa 10, decisão 1 (grelha
  * binária até 1/16, sem tercinas). Dados, não uma cadeia de `if`: as duas
- * funções abaixo (e a decomposição de pausas em `restDecomposition.ts`) só
+ * funções abaixo (e a decomposição de pausas em `decomposeRestTicks.ts`) só
  * leem esta tabela.
  *
  * Ordenada ascendentemente por `ticks` — `nearestNoteDuration` e
  * `largestNoteDurationAtMost` dependem desta ordem.
+ *
+ * INVARIANTE (Tarefa 21, correção de raiz): todas as figuras são múltiplos
+ * exatos de `MIN_SUBDIVISION_TICKS` (120). Isto é o que mantém o sistema
+ * fechado: os inícios são alinhados à grelha de 120 (`snapOnset`), as
+ * durações saem sempre desta tabela, logo TODO o fim de nota cai na grelha
+ * e TODO o espaço entre notas é um múltiplo de 120 — sempre preenchível
+ * por pausas exatas.
+ *
+ * A semicolcheia pontuada (180 ticks) esteve aqui e foi removida: era a
+ * única entrada fora da grelha (1.5 × 120), e sozinha quebrava a
+ * invariante. Bastava uma nota ficar com essa figura para desalinhar tudo
+ * o que vinha a seguir, deixando espaços de 60 ticks que nenhuma figura
+ * representa — e `validateScoreDocument` (Tarefa 12), que soma as figuras,
+ * rejeitava o documento com "compasso N soma 1980, esperado 1920". Bug
+ * real, reproduzido com gravações e depois com 20 000 casos aleatórios.
+ * Também não pertencia à decisão 1: 3/32 não assenta numa grelha de 1/16.
  */
 export const NOTE_DURATIONS: readonly NoteDuration[] = [
   { noteType: 'sixteenth', dots: 0, ticks: TICKS_PER_QUARTER / 4 },
-  { noteType: 'sixteenth', dots: 1, ticks: (TICKS_PER_QUARTER / 4) * 1.5 },
   { noteType: 'eighth', dots: 0, ticks: TICKS_PER_QUARTER / 2 },
   { noteType: 'eighth', dots: 1, ticks: (TICKS_PER_QUARTER / 2) * 1.5 },
   { noteType: 'quarter', dots: 0, ticks: TICKS_PER_QUARTER },
@@ -76,18 +91,3 @@ export function largestNoteDurationAtMost(maxTicks: number): NoteDuration {
 
   return best ?? (NOTE_DURATIONS[0] as NoteDuration)
 }
-
-/**
- * A semicorchea pontuada (bug real, Tarefa 21) — a ÚNICA figura da tabela
- * que não é múltiplo de `MIN_SUBDIVISION_TICKS` (120): todas as outras,
- * incluindo as restantes pontuadas, são múltiplos exatos de 120 (`180` é
- * `120 × 1.5`, as seguintes são todas `× 1.5` de uma base já múltipla de
- * 120 — `240×1.5=360`, `480×1.5=720`, etc. — por isso ficam múltiplas).
- *
- * Consequência: uma nota real com esta figura é a única forma de o cursor
- * sair da grelha de 120 ("fase" 60) — e é também a única figura capaz de o
- * repor. `decomposeRestTicks` usa isto para corrigir a fase assim que a
- * deteta, antes de o algoritmo guloso normal (que ignora fase) escolher
- * outra coisa e ficar sem forma de a repor mais tarde.
- */
-export const DOTTED_SIXTEENTH: NoteDuration = NOTE_DURATIONS[1] as NoteDuration

@@ -33,6 +33,33 @@ export const TEMPO = {
    *  alinhado com a grelha em `computeTempoConfidence`. */
   GRID_ALIGNMENT_TOLERANCE: 0.15,
 
+  /** Margem mínima entre a melhor e a segunda melhor fase de compasso para
+   *  aceitar uma anacruse (`estimateDownbeat`). A Tarefa 9, decisão 8,
+   *  recusava detetar anacruse porque "uma tentativa de adivinhar que falhe"
+   *  é pior do que assumir que a música começa no tempo forte. O argumento
+   *  continua de pé, e não há controlo manual para corrigir um palpite
+   *  errado — por isso na dúvida comporta-se como antes (`pickupBeats: 0`).
+   *
+   *  O valor NÃO é arbitrário: a margem foi medida sobre melodias sintéticas
+   *  e os regimes separam-se por uma ordem de grandeza —
+   *    anacruse real e clara ....... 0,34 a 0,39 (e sempre a fase certa)
+   *    evidência fraca (~5% de acento) ... 0,024
+   *    sem evidência (notas iguais) ...... 0,000
+   *  0,25 fica ~10× acima do ruído e com folga abaixo do que é atingível.
+   *
+   *  Não subir isto à espera de "mais certeza": ~0,5 é um TETO estrutural em
+   *  4/4, não um alvo. A hipótese rival é sempre a que põe os tempos fortes
+   *  no tempo 3, que vale 0,5 contra 1,0 (`METRICAL_WEIGHTS_4_4`) — a
+   *  ambiguidade de meio compasso é real em música, não um defeito do
+   *  algoritmo. Um limiar de 0,6 nunca dispararia. */
+  DOWNBEAT_MIN_CONFIDENCE: 0.25,
+
+  /** Pesos métricos de cada tempo do compasso em 4/4 (`estimateDownbeat`):
+   *  o primeiro tempo é o mais forte, o terceiro é o meio-forte, os outros
+   *  dois são fracos. Só usados para PONTUAR uma hipótese de fase — não
+   *  alteram nada da notação. */
+  METRICAL_WEIGHTS_4_4: [1, 0.25, 0.5, 0.25],
+
   /** Gama aceite para a correção manual do BPM (decisão 6) — deliberadamente
    *  mais larga do que `MIN_BPM`/`MAX_BPM`: essa gama resolve ambiguidade de
    *  deteção, não limita o que o utilizador sabe que tocou. */
