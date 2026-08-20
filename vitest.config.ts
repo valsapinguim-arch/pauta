@@ -1,5 +1,14 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
+
+/** Mesma leitura que vite.config.ts — tem de ficar em sincronia, ou
+ *  `__APP_VERSION__` fica `undefined` só em testes. */
+const appVersion = (
+  JSON.parse(readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf-8')) as {
+    version: string
+  }
+).version
 
 /**
  * Ver prompts/tasks/00-preparacao-do-projeto.md (decisão 6).
@@ -14,6 +23,9 @@ import { defineConfig } from 'vitest/config'
  * seriam configuração a mais para a dimensão desta suite.
  */
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

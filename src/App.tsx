@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconButton, Toast } from '@/components'
-import { LibraryIcon } from '@/components/icons'
+import { LibraryIcon, WrenchIcon } from '@/components/icons'
 import { useFilePicker, useRecordingFlow } from '@/features/capture'
 import type { FilePickerApi, RecordingFlowApi } from '@/features/capture'
+import { DiagnosticsView } from '@/features/diagnostics'
 import { LibraryView, useLibraryAutosave } from '@/features/library'
 import { useAppUpdate, useInstallPrompt } from '@/features/pwa'
 import {
@@ -20,7 +21,7 @@ import { applyManualKey } from '@/lib/key/applyManualKey'
 import { applyTitle } from '@/lib/notation/applyTitle'
 import { applyManualBpm } from '@/lib/tempo/applyManualBpm'
 import type { ScoreDocument } from '@/lib/types'
-import { app, install, library, update } from '@/strings'
+import { app, diagnostics, install, library, update } from '@/strings'
 import styles from './App.module.css'
 
 /** Só usada aqui — se um segundo sítio precisar dela, aí sim justifica-se
@@ -49,6 +50,12 @@ export function App() {
   const [showLibrary, setShowLibrary] = useState(false)
   const libraryButtonRef = useRef<HTMLButtonElement | null>(null)
   const wasLibraryOpenRef = useRef(false)
+  /* Ecrã de diagnóstico (Tarefa 21) — fora do fluxo principal, mesma
+     convenção que a biblioteca (`showLibrary`), mas sem o mecanismo de
+     `history.pushState` da Tarefa 16, decisão 11: não é um destino que
+     alguém espere alcançar com o botão "voltar" do sistema, é um atalho
+     discreto que se fecha como qualquer outro painel. */
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
 
   /* Foco de volta ao botão que abriu a biblioteca, ao fechar (Tarefa 18,
    *  decisão 5) — a biblioteca é o "diálogo" mais parecido com um ecrã
@@ -98,20 +105,31 @@ export function App() {
         <h1 className={styles.name}>{app.name}</h1>
         <p className={styles.tagline}>{app.tagline}</p>
         {(state.status === 'idle' || state.status === 'result' || state.status === 'error') && (
-          <IconButton
-            ref={libraryButtonRef}
-            icon={<LibraryIcon />}
-            label={library.openButton}
-            variant="ghost"
-            className={styles.libraryButton}
-            onClick={() => setShowLibrary(true)}
-          />
+          <>
+            <IconButton
+              ref={libraryButtonRef}
+              icon={<LibraryIcon />}
+              label={library.openButton}
+              variant="ghost"
+              className={styles.libraryButton}
+              onClick={() => setShowLibrary(true)}
+            />
+            <IconButton
+              icon={<WrenchIcon />}
+              label={diagnostics.openButton}
+              variant="ghost"
+              className={styles.libraryButton}
+              onClick={() => setShowDiagnostics(true)}
+            />
+          </>
         )}
       </header>
 
       <div className={styles.stage}>
         {showLibrary ? (
           <LibraryView onClose={closeLibrary} onOpen={openFromLibrary} />
+        ) : showDiagnostics ? (
+          <DiagnosticsView onClose={() => setShowDiagnostics(false)} />
         ) : (
           renderStage(state, session, recording, filePicker, preprocess, transcriber)
         )}

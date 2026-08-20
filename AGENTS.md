@@ -31,7 +31,11 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
                      PDF (Tarefa 15) — não são os ícones PWA nem assets de UI;
                      /src/features/library/ → biblioteca local em IndexedDB (Tarefa 16, ex.: db.ts,
                      repository.ts, useLibraryAutosave.ts) — `db.ts` e `repository.ts` são os únicos
-                     ficheiros do repositório que importam `idb`
+                     ficheiros do repositório que importam `idb`;
+                     /src/features/diagnostics/ → registo local de erros em anel e ecrã de
+                     diagnóstico (Tarefa 21, ex.: errorLog.ts, telemetryConsent.ts, useDiagnostics.ts)
+                     — base de dados IndexedDB própria (`pauta-diagnostics`), separada de
+                     `pauta-library`
   /src/components/ → inventário fechado de 9 (Button, IconButton, Sheet, Progress, Alert, Spinner,
                      Toast, Input, List — Tarefas 12 e 16) + icons/ e cx.ts (suporte, fora do
                      inventário)
@@ -48,7 +52,13 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
                      `transcribe.worker.ts`, que não é @/lib;
                      /src/lib/performance/ → decisão de limite de duração por capacidade do
                      dispositivo (Tarefa 19, ex.: chooseDurationLimitMs) — a leitura do `navigator`
-                     em si fica em `@/features/capture/deviceCapability.ts`, que não é @/lib —
+                     em si fica em `@/features/capture/deviceCapability.ts`, que não é @/lib;
+                     /src/lib/errors.ts → catálogo único de erros nomeados (Tarefa 21, decisão 1);
+                     /src/lib/telemetry.ts → fila de eventos e verificação da lista permitida (Tarefa
+                     21, decisão 8) — puro, sem `localStorage`; o consentimento em si fica em
+                     `@/features/diagnostics/telemetryConsent.ts`;
+                     /src/lib/withTimeout.ts → limite de tempo para operações baseadas em promessa
+                     (Tarefa 21, decisão 6) —
                      nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
                      (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
@@ -1015,6 +1025,66 @@ esperado 1920` — um compasso deixa de somar `QUANTIZE.MEASURE_TICKS`. Sinaliza
   existia), quota esgotada (Tarefa 16, `repository.test.ts`, já existia), permissão de microfone
   negada (Tarefa 4, `useMicrophone.test.ts`, já existia) — o que faltava e ficou coberto agora é o
   ficheiro corrompido e, por acidente feliz de os ter procurado, o bug de quantização acima.
+
+## Erros e telemetria (Tarefa 21)
+
+- **Catálogo único de erros** (`@/lib/errors.ts`, decisão 1) — todo o erro da app vive lá: código,
+  título, mensagem, ação sugerida, recuperabilidade. Proibido criar erros ad-hoc numa feature ou
+  mostrar ao utilizador um erro sem ação sugerida — `errors.test.ts` verifica que nenhuma entrada
+  fica sem `action`, `title` ou `body` não vazios. `src/strings/errors.ts` importa daqui
+  (`getErrorEntry`) — deixou de ser a fonte, é só a camada que a interface consome.
+- **Detalhes técnicos nunca vão para a interface** (decisão 3) — mensagem original, `stack trace` e
+  contexto ficam só no registo local (`@/features/diagnostics/errorLog.ts`); a interface mostra
+  sempre a mensagem do catálogo, indexada por `code`.
+- **Registo local em anel** (`@/features/diagnostics/errorLog.ts`, `db.ts`, decisão 4) — até
+  `ERROR_LOG_LIMIT` (50) entradas numa base de dados IndexedDB própria, `pauta-diagnostics`,
+  **separada** de `pauta-library` (Tarefa 16): o registo de erros nunca pode competir com as
+  transcrições pela quota de armazenamento. `logError()` nunca lança — uma falha a registar um erro
+  cai em `console.error`, nunca propaga para quem estava a falhar.
+- **`DiagnosticsView`** (`@/features/diagnostics/views/DiagnosticsView.tsx`) — acessível por um botão
+  discreto no cabeçalho (`WrenchIcon`, ao lado do da biblioteca), fora do fluxo principal, sem
+  `history.pushState` (ao contrário da biblioteca, Tarefa 16 decisão 11: não é um destino que
+  alguém espere alcançar com o botão físico "voltar"). Mostra o registo de erros (copiar, exportar
+  como ficheiro via `shareOrDownload`, limpar com confirmação), informação do dispositivo/app
+  (`__APP_VERSION__`, injetada por `define` em `vite.config.ts`/`vitest.config.ts` a partir de
+  `package.json` — nunca duplicar o número à mão) e o controlo de consentimento de telemetria.
+- **Erro de worker sempre propagado com código; `onerror` e `onmessageerror` sempre tratados**
+  (decisão 5) — `useTranscriber`/`usePreprocessAudio` tratam os dois; nenhum passa por `onmessage`,
+  por isso não podem ficar sem handler próprio. A app nunca pode ficar presa em `processing`.
+- **Limite de tempo em toda a operação assíncrona** (decisão 6) — dois mecanismos, conforme o tipo
+  de operação, nunca misturados:
+  - Baseada em worker (pré-processamento, transcrição): `setTimeout` armado a cada `postMessage` e
+    reiniciado a cada mensagem de progresso (sinal de vida), implementado diretamente em
+    `useTranscriber`/`usePreprocessAudio` — dispara `operation-timeout` e termina o worker. Não usar
+    `withTimeout` aqui: precisa de terminar o worker, não só rejeitar uma promessa.
+  - Baseada em promessa (escrita em IndexedDB, `@/features/library/repository.ts`):
+    `@/lib/withTimeout.ts`, `WRITE_TIMEOUT_MS`.
+  - Exportação (`@/features/export`) fica de fora de propósito: `shareOrDownload` pode abrir o
+    postal de partilha do sistema, que espera por uma escolha do utilizador — "esgotar o tempo"
+    nesse caso seria um bug, não uma proteção.
+- **Telemetria opt-in, desligada por omissão, sem destino** (decisão 7) — `@/lib/telemetry.ts`
+  prepara só a fila de eventos e a validação da lista permitida; **não envia nada para lado
+  nenhum**, não há função `send`/`flush`. O consentimento (`getTelemetryConsent`/
+  `setTelemetryConsent`) vive em `@/features/diagnostics/telemetryConsent.ts`, não em `@/lib` — `@/lib`
+  é puro, sem `localStorage` (guardrail de ESLint, `no-restricted-globals`). Ligar um destino a
+  sério exige escolher o serviço, abrir a CSP para esse domínio e atualizar
+  `docs/architecture.md`/`README.md` — não é uma alteração de configuração.
+- **Lista fechada de campos de telemetria, verificada em código** (decisão 8) —
+  `recordEvent(event, consent)` em `@/lib/telemetry.ts` lança `TelemetryFieldNotAllowedError` para
+  qualquer campo fora de `errorCode`, `audioDurationBucket`, `inputType`, `deviceTier`,
+  `appVersion`, `processingTimeBucket` — a validação corre sempre, com ou sem consentimento (um
+  campo proibido é um bug a apanhar em desenvolvimento). Nunca: áudio, notas, alturas, títulos,
+  nomes de ficheiro, identificadores.
+- **Proibido qualquer identificador de utilizador ou de instalação, mesmo anónimo** (decisão 9) —
+  nenhum `crypto.randomUUID()` nem equivalente gerado ou persistido para este fim (a biblioteca
+  usa `crypto.randomUUID()` para o `id` de cada transcrição, Tarefa 16 — isso é diferente, é a
+  chave de um registo, não um identificador de pessoa ou instalação).
+- **`AppErrorBoundary` preserva e comunica o resultado guardado** (decisão 10) — ao apanhar um
+  erro, regista no diagnóstico local (`logError`) e consulta `count()` da biblioteca
+  (`@/features/library/repository.ts`); se houver pelo menos um registo guardado, mostra
+  `crash.savedNotice`. Não é uma garantia perfeita de que É a transcrição mais recente que ficou
+  guardada (o crash podia ter acontecido antes da gravação automática, Tarefa 16 decisão 5) — é o
+  sinal honesto que dá para mostrar sem inventar mais estado.
 
 ## Qualidade
 
