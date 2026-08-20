@@ -12,12 +12,23 @@ import { vi } from 'vitest'
  * `postMessage` é espiado (`vi.fn`) para os testes poderem verificar o
  * pedido enviado; `emit` simula uma resposta do worker chamando
  * `onmessage` como o browser chamaria.
+ *
+ * `postMessage` também DESTACA de verdade os buffers passados no segundo
+ * argumento (`structuredClone(buf, { transfer: [buf] })`), tal como o
+ * `Worker` nativo faz — sem isto, um duplo "bem comportado" a mais
+ * escondia um bug real encontrado numa sessão de testes manual (Tarefa 21):
+ * ler `pcm.length` depois de o buffer ser transferido dá sempre 0, e nada
+ * nos testes apanhava isso porque o duplo nunca reproduzia o destaque.
  */
 export class FakeWorker {
   onmessage: ((event: MessageEvent) => void) | null = null
   onerror: ((event: ErrorEvent) => void) | null = null
   onmessageerror: ((event: MessageEvent) => void) | null = null
-  postMessage = vi.fn()
+  postMessage = vi.fn((_data: unknown, transfer?: Transferable[]) => {
+    for (const buffer of transfer ?? []) {
+      structuredClone(buffer, { transfer: [buffer as ArrayBuffer] })
+    }
+  })
   terminate = vi.fn()
 
   emit(data: unknown): void {

@@ -107,6 +107,14 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
   const transcribe = useCallback(
     (audio: CapturedAudio) => {
       const worker = getWorker()
+      // Calculado já aqui, não dentro de `onmessage`: `audio.pcm.buffer` é
+      // TRANSFERIDO (não copiado) para o worker no `postMessage` mais
+      // abaixo — depois disso, `audio.pcm.length` fica permanentemente 0
+      // (o `ArrayBuffer` original fica destacado). Ler a duração só quando
+      // o resultado chega, mais tarde, dava sempre 0 — bug real encontrado
+      // ao inspecionar a Biblioteca (Tarefa 16), onde toda a duração
+      // guardada aparecia como "00:00".
+      const durationSec = audio.pcm.length / audio.sampleRate
 
       worker.onmessage = (event: MessageEvent<TranscribeResponse>) => {
         const message = event.data
@@ -153,7 +161,7 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
                 title: defaultTitle(sourceName, createdAt),
                 createdAt,
                 sourceName,
-                durationSec: audio.pcm.length / audio.sampleRate,
+                durationSec,
                 notesConfidence: confidence,
               },
             })

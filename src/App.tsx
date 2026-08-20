@@ -47,21 +47,25 @@ export function App() {
   const [updateDismissed, setUpdateDismissed] = useState(false)
 
   const autosave = useLibraryAutosave(session)
-  const [showLibrary, setShowLibrary] = useState(false)
+  /* Painel sobreposto ao ecrã principal — Biblioteca (Tarefa 16) e
+   *  Diagnóstico (Tarefa 21). Um só estado, não dois booleanos
+   *  independentes (`showLibrary`/`showDiagnostics`): com dois, era possível
+   *  os dois ficarem a `true` ao mesmo tempo (abrir Diagnóstico sem fechar
+   *  primeiro a Biblioteca) — fechar a Biblioteca a seguir "aterrava" sem
+   *  aviso no Diagnóstico, porque o ternário de baixo dava prioridade à
+   *  Biblioteca e escondia esse segundo `true` até lá. Um único estado torna
+   *  essa combinação inexprimível, mesmo padrão da união discriminada de
+   *  `session.types.ts` (Tarefa 1, decisão 3). */
+  const [activePanel, setActivePanel] = useState<'none' | 'library' | 'diagnostics'>('none')
+  const showLibrary = activePanel === 'library'
   const libraryButtonRef = useRef<HTMLButtonElement | null>(null)
   const wasLibraryOpenRef = useRef(false)
-  /* Ecrã de diagnóstico (Tarefa 21) — fora do fluxo principal, mesma
-     convenção que a biblioteca (`showLibrary`), mas sem o mecanismo de
-     `history.pushState` da Tarefa 16, decisão 11: não é um destino que
-     alguém espere alcançar com o botão "voltar" do sistema, é um atalho
-     discreto que se fecha como qualquer outro painel. */
-  const [showDiagnostics, setShowDiagnostics] = useState(false)
 
   /* Foco de volta ao botão que abriu a biblioteca, ao fechar (Tarefa 18,
    *  decisão 5) — a biblioteca é o "diálogo" mais parecido com um ecrã
    *  separado que esta app tem (Tarefa 16, decisão 11). O fecho pode vir
    *  de `history.back()` (assíncrono, via `popstate`) ou de
-   *  `setShowLibrary(false)` direto — este efeito cobre os dois caminhos
+   *  `setActivePanel('none')` direto — este efeito cobre os dois caminhos
    *  ao reagir à mudança de `showLibrary` em vez de a um deles. */
   useEffect(() => {
     if (!showLibrary && wasLibraryOpenRef.current) {
@@ -76,11 +80,14 @@ export function App() {
      `popstate`, que fecha a biblioteca — o mesmo caminho serve o botão de
      fechar desta view (`closeLibrary`, abaixo), que consome essa entrada em
      vez de a deixar pendurada. Não testado num dispositivo Android real
-     neste ambiente (ver `AGENTS.md`, Biblioteca local). */
+     neste ambiente (ver `AGENTS.md`, Biblioteca local). O Diagnóstico
+     (Tarefa 21) não entra neste mecanismo de propósito: não é um destino
+     que alguém espere alcançar com o botão "voltar", é um atalho discreto
+     que se fecha como qualquer outro painel. */
   useEffect(() => {
     if (!showLibrary) return
     window.history.pushState({ pautaLibrary: true }, '')
-    const handlePopState = () => setShowLibrary(false)
+    const handlePopState = () => setActivePanel('none')
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [showLibrary])
@@ -89,7 +96,7 @@ export function App() {
     if (window.history.state?.pautaLibrary) {
       window.history.back()
     } else {
-      setShowLibrary(false)
+      setActivePanel('none')
     }
   }
 
@@ -105,31 +112,29 @@ export function App() {
         <h1 className={styles.name}>{app.name}</h1>
         <p className={styles.tagline}>{app.tagline}</p>
         {(state.status === 'idle' || state.status === 'result' || state.status === 'error') && (
-          <>
+          <div className={styles.headerActions}>
             <IconButton
               ref={libraryButtonRef}
               icon={<LibraryIcon />}
               label={library.openButton}
               variant="ghost"
-              className={styles.libraryButton}
-              onClick={() => setShowLibrary(true)}
+              onClick={() => setActivePanel('library')}
             />
             <IconButton
               icon={<WrenchIcon />}
               label={diagnostics.openButton}
               variant="ghost"
-              className={styles.libraryButton}
-              onClick={() => setShowDiagnostics(true)}
+              onClick={() => setActivePanel('diagnostics')}
             />
-          </>
+          </div>
         )}
       </header>
 
       <div className={styles.stage}>
-        {showLibrary ? (
+        {activePanel === 'library' ? (
           <LibraryView onClose={closeLibrary} onOpen={openFromLibrary} />
-        ) : showDiagnostics ? (
-          <DiagnosticsView onClose={() => setShowDiagnostics(false)} />
+        ) : activePanel === 'diagnostics' ? (
+          <DiagnosticsView onClose={() => setActivePanel('none')} />
         ) : (
           renderStage(state, session, recording, filePicker, preprocess, transcriber)
         )}

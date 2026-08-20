@@ -15,10 +15,18 @@
   text-align: center;
 }
 
-.libraryButton {
+/** Canto superior direito do cabeçalho — Biblioteca (Tarefa 16) e
+ *  Diagnóstico (Tarefa 21) lado a lado, nunca sobrepostos: um `IconButton`
+ *  sozinho aqui usava `position: absolute` diretamente; com dois, isso
+ *  empilhava-os no mesmo sítio e o segundo (Diagnóstico, por vir depois no
+ *  DOM) roubava todos os cliques ao primeiro (Biblioteca), que ficava
+ *  visualmente presente mas inacessível ao rato/toque. */
+.headerActions {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  gap: var(--space-1);
 }
 
 .name {

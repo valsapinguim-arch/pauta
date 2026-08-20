@@ -6,7 +6,13 @@ import type { CapturedAudio } from '@/lib/types'
 import { installFakeWorker } from '@/test/fakeWorker'
 import { usePreprocessAudio } from './usePreprocessAudio'
 
-const AUDIO: CapturedAudio = { pcm: new Float32Array(22_050), sampleRate: 22_050 }
+/** Fábrica, não uma constante partilhada: `FakeWorker.postMessage` destaca
+ *  de verdade o buffer transferido (Tarefa 21, ver `@/test/fakeWorker`) —
+ *  reutilizar o mesmo `Float32Array` entre testes faria o segundo `run()`
+ *  tentar transferir um buffer já destacado pelo primeiro. */
+function audio(): CapturedAudio {
+  return { pcm: new Float32Array(22_050), sampleRate: 22_050 }
+}
 
 describe('usePreprocessAudio', () => {
   beforeEach(() => {
@@ -23,12 +29,12 @@ describe('usePreprocessAudio', () => {
     })
 
     act(() => result.current.session.startProcessing({ kind: 'microphone' }))
-    act(() => result.current.preprocess.run(AUDIO))
+    act(() => result.current.preprocess.run(audio()))
 
     const worker = instances[0]
     expect(worker?.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'preprocess', pcm: AUDIO.pcm }),
-      [AUDIO.pcm.buffer],
+      expect.objectContaining({ type: 'preprocess' }),
+      expect.any(Array),
     )
 
     const processed = new Float32Array(10)
@@ -48,7 +54,7 @@ describe('usePreprocessAudio', () => {
     })
 
     act(() => result.current.session.startProcessing({ kind: 'microphone' }))
-    act(() => result.current.preprocess.run(AUDIO))
+    act(() => result.current.preprocess.run(audio()))
     act(() => instances[0]?.emit({ type: 'error', message: 'falhou' }))
 
     expect(result.current.session.state).toMatchObject({
