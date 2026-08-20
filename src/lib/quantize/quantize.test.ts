@@ -81,6 +81,51 @@ describe('quantize', () => {
     expect(result.notes.filter((n) => !n.isRest)).toHaveLength(2)
   })
 
+  it('notas alternadas G4/A4 que deixam um intervalo interior menor que a semicorchea não estoiram a soma do compasso', () => {
+    // Bug real (Tarefa 20, fixtures de áudio): [0.4, 0.2, 0.2, 0.2, 0.2] a
+    // alternar de altura. A dotted-sixteenth (180 ticks) atribuída à segunda
+    // nota (0.2s) termina fora da grelha de 120 ticks do snap de início;
+    // isso deixa um intervalo interior de só 60 ticks antes da nota
+    // seguinte — menos do que a semicorchea (120), a menor figura da tabela.
+    // `decomposeRestTicks` decompunha esse intervalo com uma pausa de 120
+    // ticks na mesma (decisão 5 de `noteDurations.ts`: promover, nunca
+    // eliminar), invadindo os 60 ticks da nota seguinte e fazendo o
+    // compasso somar 1980/2100 em vez de 1920.
+    const G4 = 67
+    const A4 = 69
+    const durations = [0.4, 0.2, 0.2, 0.2, 0.2]
+    let t = 0
+    const notes = durations.map((d, i) => {
+      const n = note(t, d, i % 2 === 0 ? G4 : A4)
+      t += d
+      return n
+    })
+
+    const result = quantize(notes, tempoMap)
+    const sums = measureSums(result.notes)
+    for (const sum of sums.values()) {
+      expect(sum).toBe(QUANTIZE.MEASURE_TICKS)
+    }
+  })
+
+  it('mesmo intervalo apertado com outra combinação de durações não estoira a soma do compasso', () => {
+    const G4 = 67
+    const A4 = 69
+    const durations = [0.8, 0.4, 0.2, 0.2, 0.4]
+    let t = 0
+    const notes = durations.map((d, i) => {
+      const n = note(t, d, i % 2 === 0 ? G4 : A4)
+      t += d
+      return n
+    })
+
+    const result = quantize(notes, tempoMap)
+    const sums = measureSums(result.notes)
+    for (const sum of sums.values()) {
+      expect(sum).toBe(QUANTIZE.MEASURE_TICKS)
+    }
+  })
+
   it('lista vazia não lança e devolve resultado vazio', () => {
     expect(quantize([], tempoMap)).toEqual({ notes: [], rhythmConfidence: 0 })
   })

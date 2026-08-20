@@ -1,4 +1,4 @@
-import { largestNoteDurationAtMost } from './noteDurations'
+import { largestNoteDurationAtMost, nearestNoteDuration } from './noteDurations'
 import type { WorkingNote } from './workingNote'
 
 /**
@@ -35,14 +35,23 @@ export function decomposeRestTicks(
     let maxTicks = Math.min(remaining, ticksToNextMeasure)
     if (!onBeatBoundary) maxTicks = Math.min(maxTicks, ticksToNextBeat)
 
-    const { noteType, dots, ticks } = largestNoteDurationAtMost(maxTicks)
+    const { noteType, dots, ticks: figureTicks } = largestNoteDurationAtMost(maxTicks)
+    // `largestNoteDurationAtMost` pode devolver uma figura maior que `maxTicks`
+    // quando o espaço é menor que a semicorchea (decisão 5, `noteDurations.ts`:
+    // "nunca eliminar" — promove em vez de recusar). Aqui isso não pode
+    // acontecer sem invadir o próximo limite (tempo/compasso/nota seguinte): a
+    // duração real fica presa a `maxTicks`, a figura mostrada é só a
+    // aproximação visual mais próxima — o mesmo padrão de `splitAcrossBarlines`
+    // para pedaços sem figura exata.
+    const ticks = Math.min(figureTicks, maxTicks)
+    const visual = ticks === figureTicks ? { noteType, dots } : nearestNoteDuration(ticks)
 
     rests.push({
       pitchMidi: null,
       startTick: cursor,
       durationTicks: ticks,
-      noteType,
-      dots,
+      noteType: visual.noteType,
+      dots: visual.dots,
       isRest: true,
       tiedToNext: false,
       tiedFromPrevious: false,

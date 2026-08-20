@@ -1,4 +1,4 @@
-import { largestNoteDurationAtMost } from './noteDurations'
+import { largestNoteDurationAtMost, nearestNoteDuration } from './noteDurations'
 import type { WorkingNote } from './workingNote'
 
 /**
@@ -21,9 +21,19 @@ export function resolveOverlaps(notes: WorkingNote[]): WorkingNote[] {
 
     if (current.durationTicks > gap) {
       const shortened = largestNoteDurationAtMost(gap)
-      current.durationTicks = shortened.ticks
-      current.noteType = shortened.noteType
-      current.dots = shortened.dots
+      // Tal como em `decomposeRestTicks`: quando `gap` é menor que a
+      // semicorchea, `largestNoteDurationAtMost` promove-a na mesma (decisão
+      // 5, `noteDurations.ts`) e pode devolver mais ticks do que `gap`. Deixar
+      // isso passar invadiria o início da nota seguinte — o oposto da decisão
+      // 4 deste ficheiro. A duração real fica presa a `gap`; a figura é só a
+      // aproximação visual mais próxima.
+      current.durationTicks = Math.min(shortened.ticks, gap)
+      const visual =
+        current.durationTicks === shortened.ticks
+          ? shortened
+          : nearestNoteDuration(current.durationTicks)
+      current.noteType = visual.noteType
+      current.dots = visual.dots
     }
   }
 
