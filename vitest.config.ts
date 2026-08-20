@@ -35,6 +35,24 @@ export default defineConfig({
       reportsDirectory: './coverage',
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/**/*.d.ts'],
+      /* Cobertura como diagnóstico, não como meta (Tarefa 20, decisão 8) —
+         mínimo só em `@/lib`, onde os bugs são silenciosos (uma quantização
+         errada não estoura, só produz uma pauta errada); nenhuma meta
+         global, que levaria a testes escritos só para subir a percentagem
+         em código de interface trivial. Agregado sobre `src/lib/**`
+         inteiro (não `perFile`) — um ficheiro individual abaixo do limiar
+         não falha sozinho enquanto o conjunto se mantiver acima; é o
+         conjunto que importa. Valores escolhidos com folga sobre o estado
+         atual (~90-99% por subpasta) — descer para fazer passar uma
+         alteração é proibido (ver AGENTS.md). */
+      thresholds: {
+        'src/lib/**': {
+          statements: 85,
+          branches: 75,
+          functions: 90,
+          lines: 85,
+        },
+      },
     },
   },
 })

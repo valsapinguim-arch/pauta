@@ -64,6 +64,10 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
                      exceção: corre a cada `pnpm build`, não só à mão
   /docs/           → arquitetura (architecture.md), desempenho (performance.md, Tarefa 19)
   /prompts/        → plano de desenvolvimento
+  /tests/fixtures/audio/ → WAV sintéticos de teste (Tarefa 20, generate.js,
+                     `pnpm generate-audio-fixtures`) — só `*.min.wav` fica versionado
+  /e2e/            → testes Playwright (Tarefa 20): percursos, regressão, PWA/offline
+  /playwright.config.ts → configuração do Playwright (Tarefa 20)
   ```
 - Não criar pastas fora desta estrutura sem atualizar este ficheiro.
 - Uma só `package.json` na raiz — este projeto NÃO é mono-repo. Não criar workspaces nem
@@ -946,6 +950,71 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   sério, por isso não tem dados fiáveis para essa regra — o contraste verifica-se à parte, a partir
   dos valores de `tokens.css` (secção "Acessibilidade e idioma" abaixo). Não remover essa exceção
   nem tentar "corrigir" um falso positivo de `color-contrast` em teste — não é real.
+- **Testes de `axe-core` podem falhar por timeout (5000ms) sob carga do sistema** (várias corridas
+  de teste/lint/build em paralelo) — `axe.run()` é razoavelmente pesado e o limite por omissão do
+  Vitest é apertado para isso. Confirmado na Tarefa 20: o mesmo teste passa isolado
+  (`vitest run caminho/do/ficheiro.test.tsx`) sempre que falhou em conjunto com outro trabalho
+  pesado a correr ao mesmo tempo. Antes de assumir uma regressão real, correr o ficheiro isolado.
+
+## Testes (Tarefa 20)
+
+- Pirâmide assimétrica (decisão 1): a maior parte da suite cobre `@/lib` (lógica pura); poucos
+  testes end-to-end (Playwright, `e2e/`), cobrindo percursos, não detalhes musicais — não escrever
+  testes que pontuem "qualidade musical" automaticamente (decisão 9); o que se testa é estabilidade
+  (mesma entrada → mesmo resultado, ou uma mudança revista à mão), nunca "isto soa bem".
+- **Fixtures de áudio sintético** (`tests/fixtures/audio/generate.js`, `pnpm generate-audio-fixtures`)
+  — WAV pequenos e determinísticos (nunca `Math.random()` cru; o gerador de ruído usa um PRNG com
+  semente fixa, `mulberry32`), versionados como `*.min.wav` (única exceção ao `.gitignore` que
+  ignora áudio pesado em `tests/fixtures/audio/`). Proibido adicionar gravações reais ou ficheiros
+  de música com direitos ao repositório.
+- **Testes de regressão** (`e2e/regression.spec.ts`) correm sobre esses fixtures, com inferência
+  real (nada de duplo de teste aqui — decisão 4, é o único sítio que a usa) e comparam contra um
+  _snapshot_ do Playwright (`e2e/regression.spec.ts-snapshots/*.txt`) da lista textual de notas
+  (`describeNotes`, Tarefa 18) e da confiança agregada — texto legível por uma pessoa, não o
+  `ScoreDocument` inteiro em JSON. **Os esperados só se atualizam com `--update-snapshots` revisto à
+  mão antes de committar** (decisão 3) — nunca em bloco, nunca sem ler o diff nota a nota e explicar
+  no commit porque o resultado novo é melhor. `rhythm.min.wav` usa a mesma altura repetida de
+  propósito: uma tentativa de alternar duas alturas para dar variedade rítmica desencadeou um bug
+  real de quantização (ver abaixo) — documentado no próprio `generate.js`, não silenciado.
+- **Bug real encontrado ao preparar os fixtures, não corrigido nesta tarefa**: certas combinações de
+  duração/altura fazem `@/lib/quantize/quantize.ts` lançar `[quantize] compasso N soma X ticks,
+esperado 1920` — um compasso deixa de somar `QUANTIZE.MEASURE_TICKS`. Sinalizado como tarefa à
+  parte (não é do âmbito da Tarefa 20 mexer em `quantize.ts`). O que É desta tarefa, e está feito: a
+  exceção já não escapa por apanhar — ver o ponto seguinte.
+- **`useTranscriber` apanha agora qualquer exceção do pipeline pós-inferência** (limpeza → tempo →
+  quantização → tonalidade → notação) e falha a sessão (`session.fail('transcribe-failed', true)`)
+  em vez de a deixar presa em "processing" para sempre com progresso a 100% e sem erro nenhum
+  visível — era exatamente o que o bug de quantização acima produzia antes desta correção. Proibido
+  remover este `try/catch`; é a única coisa entre uma exceção de biblioteca interna e uma sessão
+  presa sem forma de recuperar exceto recarregar a página.
+- **Duplo de teste do worker de transcrição** (`@/test/fakeWorker.ts`, `installFakeWorker`) —
+  substitui o `Worker` global por uma classe que expõe `postMessage`/`terminate` espiados e um
+  método `emit(data)` para simular respostas; `useTranscriber.test.ts` e
+  `usePreprocessAudio.test.ts` usam-no para testar a máquina de estados da sessão sem carregar
+  TensorFlow.js nem o modelo real. Proibido carregar o modelo real fora de `e2e/regression.spec.ts`.
+- **Playwright** (`playwright.config.ts`, `e2e/`) corre sempre sobre `pnpm preview` (produção) — o
+  service worker está desativado em `pnpm dev` de propósito (Tarefa 2), e testar PWA/offline em
+  desenvolvimento não testaria nada. `pnpm build` tem de correr antes de `pnpm test:e2e`
+  localmente — `webServer` não o faz por si (repetiria ~20s a cada arranque do Playwright).
+  Um só projeto (Chromium): é o único a aceitar `--use-fake-device-for-media-stream` +
+  `--use-file-for-fake-audio-capture=<caminho>` para simular o microfone com um ficheiro WAV
+  (decisão 6) — precisa também de `--use-fake-ui-for-media-stream` (sem ele, `getUserMedia` falha
+  com `NotSupportedError` mesmo com o dispositivo falso) e de `/` em vez de `\` no caminho do
+  ficheiro no Windows.
+- **Testes de componentes consultam por papel e por texto acessível** (decisão 5) — já era a
+  convenção desde a Tarefa 3; nada mudou aqui, só passou a ser regra escrita.
+- **Cobertura como diagnóstico, não meta** (decisão 8) — `vitest.config.ts`,
+  `coverage.thresholds['src/lib/**']`, agregado (não `perFile`) sobre `statements`/`lines` 85%,
+  `functions` 90%, `branches` 75%. Nenhum mínimo para `@/features`/`@/components`/`src/workers` —
+  subiria a cobertura à custa de testes escritos só para a percentagem em código de interface
+  trivial, que a decisão 8 proíbe explicitamente. `pnpm test:coverage` (não `pnpm test`, que fica
+  sem instrumentação de propósito — decisão "a suite unitária corre em segundos").
+- Casos limite cobertos: áudio em silêncio (`silence.min.wav` → erro `too-quiet`, Tarefa 4), uma só
+  nota (fixtures), ficheiro corrompido (`e2e/import-export.spec.ts`, "recupera de um erro
+  conhecido"), documento de `schemaVersion` superior (Tarefa 16, `migrateDocument.test.ts`, já
+  existia), quota esgotada (Tarefa 16, `repository.test.ts`, já existia), permissão de microfone
+  negada (Tarefa 4, `useMicrophone.test.ts`, já existia) — o que faltava e ficou coberto agora é o
+  ficheiro corrompido e, por acidente feliz de os ter procurado, o bug de quantização acima.
 
 ## Qualidade
 

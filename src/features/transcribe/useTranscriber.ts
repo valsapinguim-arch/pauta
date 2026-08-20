@@ -76,43 +76,61 @@ export function useTranscriber(session: SessionApi): TranscriberApi {
         }
 
         if (message.type === 'result') {
-          const { notes, confidence } = cleanNotes(message.notes)
-          const tempoMap = buildTempoMap(notes)
-          const { notes: quantized, rhythmConfidence } = quantize(notes, tempoMap)
-          const keyAnalysis = analyzeKey(quantized)
+          // Tarefa 20 (casos limite): o pipeline daqui para a frente
+          // (limpeza, tempo, quantização, tonalidade, notação) já lançou em
+          // produção com áudio sintético de teste — uma exceção não
+          // apanhada aqui deixava a sessão presa em "processing" para
+          // sempre (progresso a 100%, sem erro nenhum visível, sem forma
+          // de recuperar exceto recarregar a página). `transcribe-failed`
+          // é o mesmo código catch-all já usado para falhas dentro do
+          // worker (ver o `case 'error'` abaixo) — do ponto de vista de
+          // quem vê o ecrã, uma inferência que falhou e uma quantização
+          // que rejeitou o resultado são o mesmo tipo de falha.
+          try {
+            const { notes, confidence } = cleanNotes(message.notes)
+            const tempoMap = buildTempoMap(notes)
+            const { notes: quantized, rhythmConfidence } = quantize(notes, tempoMap)
+            const keyAnalysis = analyzeKey(quantized)
 
-          // `session.state` aqui é o estado capturado quando `transcribe()`
-          // foi chamado (closure), não uma leitura ao vivo — mas a fonte não
-          // muda durante `processing`, por isso está sempre correta.
-          const sourceName =
-            session.state.status === 'processing' && session.state.source.kind === 'file'
-              ? session.state.source.name
-              : null
-          const createdAt = new Date().toISOString()
+            // `session.state` aqui é o estado capturado quando `transcribe()`
+            // foi chamado (closure), não uma leitura ao vivo — mas a fonte não
+            // muda durante `processing`, por isso está sempre correta.
+            const sourceName =
+              session.state.status === 'processing' && session.state.source.kind === 'file'
+                ? session.state.source.name
+                : null
+            const createdAt = new Date().toISOString()
 
-          const document = buildScoreDocument({
-            quantizedNotes: quantized,
-            tempoMap,
-            keyAnalysis,
-            metadata: {
-              title: defaultTitle(sourceName, createdAt),
-              createdAt,
-              sourceName,
-              durationSec: audio.pcm.length / audio.sampleRate,
-              notesConfidence: confidence,
-            },
-          })
+            const document = buildScoreDocument({
+              quantizedNotes: quantized,
+              tempoMap,
+              keyAnalysis,
+              metadata: {
+                title: defaultTitle(sourceName, createdAt),
+                createdAt,
+                sourceName,
+                durationSec: audio.pcm.length / audio.sampleRate,
+                notesConfidence: confidence,
+              },
+            })
 
-          if (import.meta.env.DEV) {
-            console.warn(
-              `[pauta] pauta construída: ${document.measures.length} compassos, ` +
-                `confiança rítmica ${rhythmConfidence.toFixed(2)} (não entra em ` +
-                `ScoreDocument.metadata.confidence — só as três da decisão 5)`,
-              document,
-            )
+            if (import.meta.env.DEV) {
+              console.warn(
+                `[pauta] pauta construída: ${document.measures.length} compassos, ` +
+                  `confiança rítmica ${rhythmConfidence.toFixed(2)} (não entra em ` +
+                  `ScoreDocument.metadata.confidence — só as três da decisão 5)`,
+                document,
+              )
+            }
+
+            session.finishProcessing(document, notes)
+          } catch (error) {
+            if (import.meta.env.DEV) {
+              console.error('[pauta] pipeline de notação falhou depois da inferência', error)
+            }
+            session.fail('transcribe-failed', true)
+            terminate()
           }
-
-          session.finishProcessing(document, notes)
           return
         }
 
