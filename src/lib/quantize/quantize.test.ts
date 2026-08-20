@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteEvent, TempoMap } from '@/lib/types'
 import { QUANTIZE } from './constants'
+import { ticksForNoteType } from './noteDurations'
 import { quantize } from './quantize'
 
 const tempoMap: TempoMap = {
@@ -18,6 +19,21 @@ function note(startSec: number, durationSec: number, pitchMidi = 60): NoteEvent 
 function measureSums(notes: ReturnType<typeof quantize>['notes']): Map<number, number> {
   const sums = new Map<number, number>()
   for (const n of notes) sums.set(n.measureIndex, (sums.get(n.measureIndex) ?? 0) + n.durationTicks)
+  return sums
+}
+
+/** Mesma soma, mas recalculada a partir da FIGURA (`noteType`/`dots`), tal
+ *  como `validateScoreDocument` (Tarefa 12) faz — é essa segunda validação,
+ *  independente da de `quantize`, que apanhou o bug real desta secção
+ *  (Tarefa 21): a soma de `durationTicks` podia bater certo enquanto a soma
+ *  das figuras não batia, porque uma pausa tinha duração real correta mas
+ *  figura só aproximada. */
+function measureFigureSums(notes: ReturnType<typeof quantize>['notes']): Map<number, number> {
+  const sums = new Map<number, number>()
+  for (const n of notes) {
+    const figureTicks = ticksForNoteType(n.noteType, n.dots) ?? 0
+    sums.set(n.measureIndex, (sums.get(n.measureIndex) ?? 0) + figureTicks)
+  }
   return sums
 }
 
@@ -128,6 +144,22 @@ describe('quantize', () => {
 
   it('lista vazia não lança e devolve resultado vazio', () => {
     expect(quantize([], tempoMap)).toEqual({ notes: [], rhythmConfidence: 0 })
+  })
+
+  it('uma nota que fica com figura de semicorchea pontuada não deixa a soma por figura desalinhada da soma real (bug real, Tarefa 21)', () => {
+    // Encontrado com uma gravação real: `nearestNoteDuration` escolhe
+    // semicorchea pontuada (180 ticks) para a primeira nota — a única
+    // figura da tabela que não é múltiplo de 120 — deixando o resto do
+    // compasso "fora de fase". `quantize` já validava a soma real
+    // (`durationTicks`); esta é a soma que `validateScoreDocument` (Tarefa
+    // 12) recalcula a partir das figuras, e é ela que apanhava a
+    // aproximação visual de uma pausa cuja duração real ficava presa a um
+    // espaço mais pequeno do que qualquer figura.
+    const notes = [note(0, 0.1875, 60), note(1.125, 0.5, 62)]
+    const result = quantize(notes, tempoMap)
+
+    expect(measureSums(result.notes).get(0)).toBe(QUANTIZE.MEASURE_TICKS)
+    expect(measureFigureSums(result.notes).get(0)).toBe(QUANTIZE.MEASURE_TICKS)
   })
 
   it('mantém a ligação sourceIndex → NoteEvent original', () => {

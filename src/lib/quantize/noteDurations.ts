@@ -76,3 +76,18 @@ export function largestNoteDurationAtMost(maxTicks: number): NoteDuration {
 
   return best ?? (NOTE_DURATIONS[0] as NoteDuration)
 }
+
+/**
+ * A semicorchea pontuada (bug real, Tarefa 21) — a ÚNICA figura da tabela
+ * que não é múltiplo de `MIN_SUBDIVISION_TICKS` (120): todas as outras,
+ * incluindo as restantes pontuadas, são múltiplos exatos de 120 (`180` é
+ * `120 × 1.5`, as seguintes são todas `× 1.5` de uma base já múltipla de
+ * 120 — `240×1.5=360`, `480×1.5=720`, etc. — por isso ficam múltiplas).
+ *
+ * Consequência: uma nota real com esta figura é a única forma de o cursor
+ * sair da grelha de 120 ("fase" 60) — e é também a única figura capaz de o
+ * repor. `decomposeRestTicks` usa isto para corrigir a fase assim que a
+ * deteta, antes de o algoritmo guloso normal (que ignora fase) escolher
+ * outra coisa e ficar sem forma de a repor mais tarde.
+ */
+export const DOTTED_SIXTEENTH: NoteDuration = NOTE_DURATIONS[1] as NoteDuration

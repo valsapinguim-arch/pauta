@@ -178,6 +178,12 @@ export function ScoreView({
         hitRect.setAttribute('width', String(width))
         hitRect.setAttribute('height', String(height))
         hitRect.setAttribute('fill', 'transparent')
+        // Sem isto herda `stroke: currentColor` da regra em
+        // `ScoreView.module.css` (para as notas do VexFlow apanharem a cor
+        // do tema) — ficava com contorno visível em vez de invisível, bug
+        // real só visto ao tirar um screenshot a sério de um resultado
+        // grande (Tarefa 21, sessão de testes manual).
+        hitRect.setAttribute('stroke', 'none')
         hitRect.style.pointerEvents = onSelectRef.current ? 'all' : 'none'
         hitRect.style.cursor = onSelectRef.current ? 'pointer' : 'default'
         group.insertBefore(hitRect, group.firstChild)
