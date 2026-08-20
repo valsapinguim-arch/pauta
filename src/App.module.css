@@ -13,6 +13,12 @@
 .header {
   position: relative;
   text-align: center;
+  /* Sem isto, o cabeçalho encolhe para caber só no texto "pauta" (`.main`
+   *  usa `align-items: center`, que não estica os filhos por omissão) — o
+   *  `right: 0` de `.headerActions` ficava a ancorar a essa caixa estreita
+   *  em vez de à margem direita real da coluna, pondo os ícones quase em
+   *  cima do título (bug real, visto numa sessão de testes manual). */
+  width: 100%;
 }
 
 /** Canto superior direito do cabeçalho — Biblioteca (Tarefa 16) e
