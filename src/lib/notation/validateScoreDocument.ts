@@ -1,4 +1,4 @@
-import { NOTE_DURATIONS } from '@/lib/quantize/noteDurations'
+import { ticksForNoteType } from '@/lib/quantize/noteDurations'
 import { QUANTIZE } from '@/lib/quantize/constants'
 import type { NoteType, ScoreDocument } from '@/lib/types'
 
@@ -10,10 +10,6 @@ export class ScoreDocumentValidationError extends Error {
     this.name = 'ScoreDocumentValidationError'
   }
 }
-
-const DURATION_TICKS = new Map<string, number>(
-  NOTE_DURATIONS.map((duration) => [`${duration.noteType}:${duration.dots}`, duration.ticks]),
-)
 
 const VALID_NOTE_TYPES: ReadonlySet<NoteType> = new Set([
   'whole',
@@ -30,7 +26,7 @@ const MIN_PLAUSIBLE_MIDI = 12
 const MAX_PLAUSIBLE_MIDI = 120
 
 function ticksFor(noteType: NoteType, dots: 0 | 1): number {
-  const ticks = DURATION_TICKS.get(`${noteType}:${dots}`)
+  const ticks = ticksForNoteType(noteType, dots)
   if (ticks === undefined) {
     throw new ScoreDocumentValidationError(`figura desconhecida: ${noteType} (${dots} pontos)`)
   }

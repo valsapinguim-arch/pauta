@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Alert, Button } from '@/components'
 import { genericError, genericRestart, getErrorMessage } from '@/strings'
 import styles from './ErrorView.module.css'
@@ -25,11 +26,25 @@ export function ErrorView({ code, recoverable, onRestart }: ErrorViewProps) {
   const message = known ?? genericError
   const actionLabel = known ? known.action : recoverable ? genericError.action : genericRestart
 
+  /* Foco na mensagem ao entrar em `error` (Tarefa 18, decisão 5) — mesmo
+   *  raciocínio de `ResultView`/`scoreRegionRef`: esta view é montada de
+   *  novo a cada transição de estado, por isso o efeito sem dependências
+   *  corre exatamente uma vez, na montagem. `Alert` não encaminha `ref`
+   *  (não é `forwardRef`), por isso o foco vai para um invólucro à volta —
+   *  o `role="alert"` já garante o anúncio ao leitor de ecrã por si só;
+   *  isto é para quem navega por teclado ver visualmente onde ficou. */
+  const messageRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    messageRef.current?.focus()
+  }, [])
+
   return (
     <div className={styles.container}>
-      <Alert tone="error" title={message.title}>
-        {message.body}
-      </Alert>
+      <div ref={messageRef} tabIndex={-1}>
+        <Alert tone="error" title={message.title}>
+          {message.body}
+        </Alert>
+      </div>
       <Button variant="primary" onClick={onRestart}>
         {actionLabel}
       </Button>

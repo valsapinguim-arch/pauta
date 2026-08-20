@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { chooseDurationLimitMs } from '@/lib/performance/durationLimit'
 import type { CapturedAudio } from '@/lib/types'
+import { detectDeviceCapability } from './deviceCapability'
 /* `?worker&url`: dá a URL do ficheiro já compilado pelo Vite (TypeScript
    transpilado, imports de @/lib resolvidos), sem o instanciar como Worker —
    é exatamente o que `audioWorklet.addModule(url)` precisa. `new URL(...,
@@ -26,10 +28,16 @@ export interface MicrophoneApi {
   cancel: () => void
 }
 
-/** Ver Tarefa 4, decisão 3. Também usadas por `RecordingView` para o aviso
- *  visual perto do limite — importar sempre daqui, não duplicar o número. */
-export const MAX_RECORDING_MS = 60_000
-export const WARNING_THRESHOLD_MS = 50_000
+/** Ver Tarefa 4, decisão 3, ajustado por dispositivo na Tarefa 19, decisão
+ *  4 — calculado uma só vez, ao carregar o módulo (a capacidade do
+ *  dispositivo não muda durante a sessão). Também usadas por `RecordingView`
+ *  e `IdleView` para o aviso visual e o valor mostrado ao utilizador —
+ *  importar sempre daqui, nunca duplicar o número nem recalcular. */
+export const MAX_RECORDING_MS = chooseDurationLimitMs(detectDeviceCapability())
+/** 10 s antes do limite, qualquer que ele seja — nunca um valor absoluto
+ *  fixo, que deixaria de fazer sentido se `MAX_RECORDING_MS` descer para um
+ *  dispositivo fraco (Tarefa 19). */
+export const WARNING_THRESHOLD_MS = MAX_RECORDING_MS - 10_000
 
 /** RMS abaixo disto conta como "não se ouviu nada" (decisão 9). Provisório —
  *  por afinar com áudio real, tal como `MODEL_THRESHOLDS` (Tarefa 7) e

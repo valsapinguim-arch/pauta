@@ -68,6 +68,26 @@ svg {
   flex-direction: column;
 }
 
+/* Conteúdo só para leitores de ecrã (Tarefa 18) — usado por anúncios
+   `aria-live` que não têm equivalente visual próprio (marcos de progresso,
+   decisão 2) e pela descrição textual da pauta (decisão 3). `clip` em vez
+   de `display: none`/`visibility: hidden`, que tirariam o elemento da
+   árvore de acessibilidade e o leitor de ecrã nunca o veria. Utilitário
+   global (não um CSS Module) de propósito: é uma classe literal aplicada a
+   partir de várias features, não uma primitiva de componente com opinião
+   de design própria. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Só animação decorativa é removida; o cursor de reprodução e o indicador de
    nível são informação e mantêm-se (Tarefa 18, decisão 7). */
 @media (prefers-reduced-motion: reduce) {

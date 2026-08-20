@@ -34,7 +34,7 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "*.config.ts", "eslint.config.js"],
+  "include": ["src", "e2e", "tests", "*.config.ts", "eslint.config.js"],
   /* sw.ts e os Web Workers têm o seu próprio tsconfig.worker.json (lib
      WebWorker, não DOM) — ver Tarefa 2. Incluí-los aqui faria `self` colidir
      entre `Window` e `ServiceWorkerGlobalScope`/`DedicatedWorkerGlobalScope`. */

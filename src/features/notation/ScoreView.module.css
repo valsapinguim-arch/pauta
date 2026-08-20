@@ -17,6 +17,11 @@
   min-height: 6rem;
   overflow-x: auto;
   overflow-y: hidden;
+  /* Auto-scroll suave a seguir o cursor de reprodução (Tarefa 14) —
+     `prefers-reduced-motion: reduce` (Tarefa 18, decisão 7) já força
+     `scroll-behavior: auto` globalmente (`global.css`), o que torna isto
+     instantâneo em vez de suave sem precisar de tratamento à parte aqui. */
+  scroll-behavior: smooth;
 }
 
 .canvas {
@@ -63,4 +68,21 @@
   opacity: 0.2;
   rx: 4px;
   pointer-events: none;
+}
+
+/* Seleção de edição (Tarefa 17) — contorno, não preenchimento, para se
+   distinguir do cursor de reprodução acima mesmo que os dois algum dia
+   coexistam na marcação. Mesma razão de `:global`. */
+.canvas :global(.selection) {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  rx: 4px;
+  pointer-events: none;
+}
+
+/* Lista textual das notas a pedido (Tarefa 18, decisão 3). */
+.notesList {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }

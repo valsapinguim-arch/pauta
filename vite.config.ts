@@ -1,7 +1,17 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+/** Só a versão, lida diretamente do `package.json` (sem `resolveJsonModule`,
+ *  que mudaria o `tsconfig.json` só por causa disto) — Tarefa 21, ecrã de
+ *  diagnóstico. */
+const appVersion = (
+  JSON.parse(readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf-8')) as {
+    version: string
+  }
+).version
 
 /** Tem de coincidir com `--color-accent`/`--color-bg` em src/styles/tokens.css
  *  (tema claro) — ver Tarefa 2, decisão 6. O manifest é estático e não pode
@@ -10,6 +20,9 @@ const THEME_COLOR = '#1c5d4a'
 const BACKGROUND_COLOR = '#fbfbfa'
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     react(),
     VitePWA({
@@ -91,8 +104,12 @@ export default defineConfig({
     },
   },
   build: {
-    /* Ainda sem orçamento de bundle a sério: isso é da Tarefa 19, com medições.
-       Este aviso serve só para não deixar o tamanho crescer sem se notar. */
+    /* Aviso genérico por chunk (VexFlow, o modelo, etc. já ultrapassam isto
+       de propósito — são grandes por necessidade e ficam fora do caminho
+       crítico via import() dinâmico). O orçamento a sério, específico do
+       JavaScript que carrega mesmo no arranque, é verificado depois do
+       build por scripts/check-bundle-budget.js (Tarefa 19, decisão 8) — não
+       duplicar essa verificação aqui. */
     chunkSizeWarningLimit: 600,
   },
 })

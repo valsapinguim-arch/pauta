@@ -12,7 +12,11 @@
   --color-bg: #fbfbfa;
   --color-surface: #ffffff;
   --color-surface-sunken: #f2f2f0;
-  --color-border: #dededa;
+  /* 3.47:1 contra --color-surface (Tarefa 18, decisão 6: mínimo 3:1 para
+     elementos gráficos, incluindo o contorno de `Input`/`Button
+     variant="secondary"` — não é só decorativo, é o que diz onde o campo
+     acaba). O valor anterior (#dededa) media 1.30:1: falhava. */
+  --color-border: #8a8a83;
   --color-text: #1a1a18;
   --color-text-muted: #5c5c56;
   --color-accent: #1c5d4a;
@@ -70,7 +74,8 @@
     --color-bg: #16161a;
     --color-surface: #1f1f24;
     --color-surface-sunken: #121215;
-    --color-border: #33333a;
+    /* 3.70:1 contra --color-surface — mesma razão do tema claro acima. */
+    --color-border: #77777f;
     --color-text: #f0f0ee;
     --color-text-muted: #a3a39c;
     --color-accent: #5fbfa3;

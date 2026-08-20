@@ -1,7 +1,10 @@
-import { useState } from 'react'
-import { Toast } from '@/components'
+import { useEffect, useRef, useState } from 'react'
+import { IconButton, Toast } from '@/components'
+import { LibraryIcon, WrenchIcon } from '@/components/icons'
 import { useFilePicker, useRecordingFlow } from '@/features/capture'
 import type { FilePickerApi, RecordingFlowApi } from '@/features/capture'
+import { DiagnosticsView } from '@/features/diagnostics'
+import { LibraryView, useLibraryAutosave } from '@/features/library'
 import { useAppUpdate, useInstallPrompt } from '@/features/pwa'
 import {
   ErrorView,
@@ -17,7 +20,8 @@ import type { PreprocessAudioApi, TranscriberApi } from '@/features/transcribe'
 import { applyManualKey } from '@/lib/key/applyManualKey'
 import { applyTitle } from '@/lib/notation/applyTitle'
 import { applyManualBpm } from '@/lib/tempo/applyManualBpm'
-import { app, install, update } from '@/strings'
+import type { ScoreDocument } from '@/lib/types'
+import { app, diagnostics, install, library, update } from '@/strings'
 import styles from './App.module.css'
 
 /** Só usada aqui — se um segundo sítio precisar dela, aí sim justifica-se
@@ -42,16 +46,117 @@ export function App() {
   const [installDismissed, setInstallDismissed] = useState(false)
   const [updateDismissed, setUpdateDismissed] = useState(false)
 
+  const autosave = useLibraryAutosave(session)
+  /* Painel sobreposto ao ecrã principal — Biblioteca (Tarefa 16) e
+   *  Diagnóstico (Tarefa 21). Um só estado, não dois booleanos
+   *  independentes (`showLibrary`/`showDiagnostics`): com dois, era possível
+   *  os dois ficarem a `true` ao mesmo tempo (abrir Diagnóstico sem fechar
+   *  primeiro a Biblioteca) — fechar a Biblioteca a seguir "aterrava" sem
+   *  aviso no Diagnóstico, porque o ternário de baixo dava prioridade à
+   *  Biblioteca e escondia esse segundo `true` até lá. Um único estado torna
+   *  essa combinação inexprimível, mesmo padrão da união discriminada de
+   *  `session.types.ts` (Tarefa 1, decisão 3). */
+  const [activePanel, setActivePanel] = useState<'none' | 'library' | 'diagnostics'>('none')
+  const showLibrary = activePanel === 'library'
+  const libraryButtonRef = useRef<HTMLButtonElement | null>(null)
+  const wasLibraryOpenRef = useRef(false)
+
+  /* Foco de volta ao botão que abriu a biblioteca, ao fechar (Tarefa 18,
+   *  decisão 5) — a biblioteca é o "diálogo" mais parecido com um ecrã
+   *  separado que esta app tem (Tarefa 16, decisão 11). O fecho pode vir
+   *  de `history.back()` (assíncrono, via `popstate`) ou de
+   *  `setActivePanel('none')` direto — este efeito cobre os dois caminhos
+   *  ao reagir à mudança de `showLibrary` em vez de a um deles. */
+  useEffect(() => {
+    if (!showLibrary && wasLibraryOpenRef.current) {
+      libraryButtonRef.current?.focus()
+    }
+    wasLibraryOpenRef.current = showLibrary
+  }, [showLibrary])
+
+  /* Decisão 11 (Tarefa 16): sem router, mas o botão "voltar" físico/gesto de
+     Android tem de fechar a biblioteca em vez de sair da app. Empurra uma
+     entrada de histórico ao abrir; o "voltar" do sistema dispara
+     `popstate`, que fecha a biblioteca — o mesmo caminho serve o botão de
+     fechar desta view (`closeLibrary`, abaixo), que consome essa entrada em
+     vez de a deixar pendurada. Não testado num dispositivo Android real
+     neste ambiente (ver `AGENTS.md`, Biblioteca local). O Diagnóstico
+     (Tarefa 21) não entra neste mecanismo de propósito: não é um destino
+     que alguém espere alcançar com o botão "voltar", é um atalho discreto
+     que se fecha como qualquer outro painel. */
+  useEffect(() => {
+    if (!showLibrary) return
+    window.history.pushState({ pautaLibrary: true }, '')
+    const handlePopState = () => setActivePanel('none')
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [showLibrary])
+
+  function closeLibrary(): void {
+    if (window.history.state?.pautaLibrary) {
+      window.history.back()
+    } else {
+      setActivePanel('none')
+    }
+  }
+
+  function openFromLibrary(id: string, document: ScoreDocument): void {
+    autosave.associate(id, document)
+    session.openDocument(document)
+    closeLibrary()
+  }
+
   return (
     <main className={styles.main}>
       <header className={styles.header}>
         <h1 className={styles.name}>{app.name}</h1>
         <p className={styles.tagline}>{app.tagline}</p>
+        {(state.status === 'idle' || state.status === 'result' || state.status === 'error') && (
+          <div className={styles.headerActions}>
+            <IconButton
+              ref={libraryButtonRef}
+              icon={<LibraryIcon />}
+              label={library.openButton}
+              variant="ghost"
+              onClick={() => setActivePanel('library')}
+            />
+            <IconButton
+              icon={<WrenchIcon />}
+              label={diagnostics.openButton}
+              variant="ghost"
+              onClick={() => setActivePanel('diagnostics')}
+            />
+          </div>
+        )}
       </header>
 
       <div className={styles.stage}>
-        {renderStage(state, session, recording, filePicker, preprocess, transcriber)}
+        {activePanel === 'library' ? (
+          <LibraryView onClose={closeLibrary} onOpen={openFromLibrary} />
+        ) : activePanel === 'diagnostics' ? (
+          <DiagnosticsView onClose={() => setActivePanel('none')} />
+        ) : (
+          renderStage(state, session, recording, filePicker, preprocess, transcriber)
+        )}
       </div>
+
+      <Toast
+        open={autosave.saveError}
+        onOpenChange={(open) => {
+          if (!open) autosave.dismissSaveError()
+        }}
+        title={library.saveErrorTitle}
+        description={library.saveErrorBody}
+      />
+
+      <Toast
+        open={autosave.quotaWarning}
+        onOpenChange={(open) => {
+          if (!open) autosave.dismissQuotaWarning()
+        }}
+        title={library.quotaWarningTitle}
+        description={library.quotaWarningBody}
+      />
 
       <Toast
         open={(canInstall || isIosManualInstall) && !installDismissed}
@@ -156,6 +261,7 @@ function renderStage(
             session.replaceDocument(applyManualKey(state.document, tonic, mode))
           }
           onTitleChange={(title) => session.replaceDocument(applyTitle(state.document, title))}
+          onDocumentChange={session.replaceDocument}
         />
       )
 

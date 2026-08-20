@@ -13,6 +13,9 @@ export interface SessionApi {
   advanceProcessing: (stage: ProcessingStage, progress: number) => void
   finishProcessing: (document: ScoreDocument, notes: NoteEvent[]) => void
   replaceDocument: (document: ScoreDocument) => void
+  /** Abrir uma transcrição da biblioteca local (Tarefa 16) — entra direto em
+   *  `result`. */
+  openDocument: (document: ScoreDocument) => void
   fail: (code: string, recoverable?: boolean) => void
   cancel: () => void
   reset: () => void
@@ -64,6 +67,10 @@ export function useSession(): SessionApi {
     dispatch({ type: 'result/replace', document })
   }, [])
 
+  const openDocument = useCallback((document: ScoreDocument) => {
+    dispatch({ type: 'library/open', document })
+  }, [])
+
   const fail = useCallback((code: string, recoverable = true) => {
     dispatch({ type: 'fail', code, recoverable })
   }, [])
@@ -86,6 +93,7 @@ export function useSession(): SessionApi {
       advanceProcessing,
       finishProcessing,
       replaceDocument,
+      openDocument,
       fail,
       cancel,
       reset,
@@ -99,6 +107,7 @@ export function useSession(): SessionApi {
       advanceProcessing,
       finishProcessing,
       replaceDocument,
+      openDocument,
       fail,
       cancel,
       reset,

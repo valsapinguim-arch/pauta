@@ -1,19 +1,23 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Alert, Button, IconButton, Input, Sheet, Spinner, Toast } from '@/components'
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   MetronomeIcon,
   MinusIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
+  RedoIcon,
   StopIcon,
+  UndoIcon,
 } from '@/components/icons'
 import type { ExportFormat } from '@/features/export'
 import { useExport } from '@/features/export'
-import { ScoreView, usePlayback } from '@/features/notation'
+import { EditToolbar, ScoreView, useScoreEditor, usePlayback } from '@/features/notation'
 import { PLAYBACK } from '@/lib/playback/constants'
 import type { KeyMode, ScoreDocument } from '@/lib/types'
-import { exportPanel, playback as playbackStrings, result } from '@/strings'
+import { edit as editStrings, exportPanel, playback as playbackStrings, result } from '@/strings'
 import styles from './ResultView.module.css'
 
 const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
@@ -39,6 +43,11 @@ export interface ResultViewProps {
   /** Edição do título (Tarefa 12) — em branco é ignorado por quem aplica
    *  (`applyTitle`, `@/lib/notation`), nunca por esta view. */
   onTitleChange: (title: string) => void
+  /** Edição manual nota a nota, transposição e desfazer/refazer (Tarefa
+   *  17) — `useScoreEditor` já devolve o documento seguinte pronto
+   *  (`@/lib/notation/edit`); esta view só o repassa à sessão, mesmo
+   *  padrão de `onBpmChange`/`onKeyChange`/`onTitleChange` acima. */
+  onDocumentChange: (document: ScoreDocument) => void
 }
 
 /**
@@ -51,11 +60,13 @@ export function ResultView({
   onBpmChange,
   onKeyChange,
   onTitleChange,
+  onDocumentChange,
 }: ResultViewProps) {
   const { bpm, source: tempoSource } = scoreDocument.tempo
   const { tonic, mode, source: keySource } = scoreDocument.key
   const { confidence } = scoreDocument.metadata
   const playback = usePlayback(scoreDocument)
+  const editor = useScoreEditor(scoreDocument, onDocumentChange, playback.stop)
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const getSvgElement = useCallback(() => svgRef.current, [])
@@ -63,6 +74,18 @@ export function ResultView({
     svgRef.current = svg
   }, [])
   const exportApi = useExport(scoreDocument, getSvgElement)
+
+  /* Foco na região da pauta ao entrar em `result` (Tarefa 18, decisão 5) —
+   *  `ResultView` é montada de novo a cada transição de estado (Tarefa 3,
+   *  decisão 7: as views substituem-se por completo), por isso um efeito
+   *  sem dependências corre exatamente uma vez, na montagem, que é
+   *  exatamente quando se entra neste estado. Sem isto o foco cai no
+   *  `body` e um utilizador de teclado ou de leitor de ecrã perde o
+   *  contexto. */
+  const scoreRegionRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    scoreRegionRef.current?.focus()
+  }, [])
 
   return (
     <div className={styles.container}>
@@ -73,13 +96,32 @@ export function ResultView({
         onChange={(event) => onTitleChange(event.target.value)}
       />
 
-      <Sheet elevated padding="lg" className={styles.score}>
+      <Sheet elevated padding="lg" className={styles.score} ref={scoreRegionRef} tabIndex={-1}>
         <ScoreView
           document={scoreDocument}
           cursor={playback.currentPosition}
+          selection={editor.selection}
+          onSelect={editor.select}
           onSvgReady={handleSvgReady}
         />
       </Sheet>
+
+      <div className={styles.noteNav}>
+        <IconButton
+          icon={<ChevronLeftIcon />}
+          label={editStrings.previousNote}
+          size="sm"
+          onClick={editor.selectPrevious}
+        />
+        <IconButton
+          icon={<ChevronRightIcon />}
+          label={editStrings.nextNote}
+          size="sm"
+          onClick={editor.selectNext}
+        />
+      </div>
+
+      <EditToolbar editor={editor} />
 
       <div className={styles.playback}>
         <IconButton
@@ -184,6 +226,40 @@ export function ResultView({
         </Alert>
       )}
 
+      <div className={styles.tempo}>
+        <span className={styles.tempoLabel}>{editStrings.transposeLabel}</span>
+        <div className={styles.tempoControl}>
+          <IconButton
+            icon={<MinusIcon />}
+            label={editStrings.decreaseTranspose}
+            size="sm"
+            onClick={() => editor.transpose(-1)}
+          />
+          <IconButton
+            icon={<PlusIcon />}
+            label={editStrings.increaseTranspose}
+            size="sm"
+            onClick={() => editor.transpose(1)}
+          />
+        </div>
+        <IconButton
+          icon={<UndoIcon />}
+          label={editStrings.undo}
+          size="sm"
+          variant="ghost"
+          disabled={!editor.canUndo}
+          onClick={editor.undo}
+        />
+        <IconButton
+          icon={<RedoIcon />}
+          label={editStrings.redo}
+          size="sm"
+          variant="ghost"
+          disabled={!editor.canRedo}
+          onClick={editor.redo}
+        />
+      </div>
+
       <div className={styles.actions}>
         <Button variant="secondary" onClick={onNewTranscription}>
           {result.newTranscription}
@@ -208,6 +284,15 @@ export function ResultView({
         }}
         title={exportPanel.errorTitle}
         description={exportPanel.errorBody}
+      />
+
+      <Toast
+        open={editor.error}
+        onOpenChange={(open) => {
+          if (!open) editor.dismissError()
+        }}
+        title={editStrings.errorTitle}
+        description={editStrings.errorBody}
       />
     </div>
   )

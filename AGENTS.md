@@ -28,28 +28,56 @@ forem tomadas decisões técnicas, em vez de criar documentação paralela.
   /src/features/session/views/ → as 5 views do ecrã principal (Tarefa 3)
   /src/features/   → uma pasta por etapa/ecrã (capture, transcribe, notation, export, library, pwa);
                      /src/features/export/fonts/ → Bravura/Academico em .ttf, vendorizados para o
-                     PDF (Tarefa 15) — não são os ícones PWA nem assets de UI
-  /src/components/ → inventário fechado de 8 (Button, IconButton, Sheet, Progress, Alert, Spinner,
-                     Toast, Input — Tarefa 12) + icons/ e cx.ts (suporte, fora do inventário)
+                     PDF (Tarefa 15) — não são os ícones PWA nem assets de UI;
+                     /src/features/library/ → biblioteca local em IndexedDB (Tarefa 16, ex.: db.ts,
+                     repository.ts, useLibraryAutosave.ts) — `db.ts` e `repository.ts` são os únicos
+                     ficheiros do repositório que importam `idb`;
+                     /src/features/diagnostics/ → registo local de erros em anel e ecrã de
+                     diagnóstico (Tarefa 21, ex.: errorLog.ts, telemetryConsent.ts, useDiagnostics.ts)
+                     — base de dados IndexedDB própria (`pauta-diagnostics`), separada de
+                     `pauta-library`
+  /src/components/ → inventário fechado de 9 (Button, IconButton, Sheet, Progress, Alert, Spinner,
+                     Toast, Input, List — Tarefas 12 e 16) + icons/ e cx.ts (suporte, fora do
+                     inventário)
   /src/workers/    → Web Workers e AudioWorklets (*.worklet.ts)
   /src/lib/        → lógica pura (sem DOM, sem I/O); /src/lib/audio/ → matemática de áudio
                      partilhada entre workers/worklets e o resto da app (ex.: calculateRms);
                      /src/lib/notes/ → limpeza da saída do modelo (Tarefa 8, ex.: cleanNotes);
                      /src/lib/playback/ → eventos de reprodução (Tarefa 14, ex.: scoreToEvents);
-                     /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi) —
+                     /src/lib/export/ → MusicXML e MIDI (Tarefa 15, ex.: toMusicXml, toMidi);
+                     /src/lib/migrations/ → migração de `ScoreDocument` persistido por
+                     `schemaVersion` (Tarefa 16, ex.: migrateDocument);
+                     /src/lib/transcribe/ → processamento por blocos (Tarefa 19, ex.: planWindows,
+                     mergeWindowedNotes) — só a parte pura; o `evaluateModel` em si fica em
+                     `transcribe.worker.ts`, que não é @/lib;
+                     /src/lib/performance/ → decisão de limite de duração por capacidade do
+                     dispositivo (Tarefa 19, ex.: chooseDurationLimitMs) — a leitura do `navigator`
+                     em si fica em `@/features/capture/deviceCapability.ts`, que não é @/lib;
+                     /src/lib/errors.ts → catálogo único de erros nomeados (Tarefa 21, decisão 1);
+                     /src/lib/telemetry.ts → fila de eventos e verificação da lista permitida (Tarefa
+                     21, decisão 8) — puro, sem `localStorage`; o consentimento em si fica em
+                     `@/features/diagnostics/telemetryConsent.ts`;
+                     /src/lib/withTimeout.ts → limite de tempo para operações baseadas em promessa
+                     (Tarefa 21, decisão 6) —
                      nenhuma pasta de @/lib tem `index.ts`; importa-se sempre o ficheiro concreto
                      (ex.: `@/lib/notes/cleanNotes`), nunca um barrel
   /src/styles/     → tokens
   /src/strings/    → textos pt-PT
   /src/test/setup.ts → configuração global do Vitest (limpeza do DOM, polyfills de jsdom)
+  /src/test/axe.ts → `expectNoA11yViolations` (Tarefa 18)
   /src/sw.ts       → service worker (injectManifest — Tarefa 2)
   /public/models/basic-pitch/ → modelo Basic Pitch empacotado (Tarefa 7)
   /public/models/tfjs-wasm/   → binários WASM do TensorFlow.js (Tarefa 7)
   /public/*.png, /public/favicon.ico, /public/*.svg → ícones PWA (gerados, Tarefa 2)
-  /scripts/        → utilitários de linha de comandos, corridos à mão (ex.: copy-model-assets.js,
-                     Tarefa 7) — nunca parte do build nem do bundle da app
-  /docs/           → arquitetura
+  /scripts/        → utilitários de linha de comandos (ex.: copy-model-assets.js, Tarefa 7, corrido
+                     à mão) — nunca parte do bundle da app; check-bundle-budget.js (Tarefa 19) é
+                     exceção: corre a cada `pnpm build`, não só à mão
+  /docs/           → arquitetura (architecture.md), desempenho (performance.md, Tarefa 19)
   /prompts/        → plano de desenvolvimento
+  /tests/fixtures/audio/ → WAV sintéticos de teste (Tarefa 20, generate.js,
+                     `pnpm generate-audio-fixtures`) — só `*.min.wav` fica versionado
+  /e2e/            → testes Playwright (Tarefa 20): percursos, regressão, PWA/offline
+  /playwright.config.ts → configuração do Playwright (Tarefa 20)
   ```
 - Não criar pastas fora desta estrutura sem atualizar este ficheiro.
 - Uma só `package.json` na raiz — este projeto NÃO é mono-repo. Não criar workspaces nem
@@ -592,6 +620,246 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   feita foi estrutural (XML bem formado e com os campos certos, cabeçalho MIDI válido, PDF/PNG
   inspecionados visualmente). Fazer a validação externa antes de confiar nos ficheiros.
 
+## Biblioteca local (Tarefa 16)
+
+- Persistência usa IndexedDB via `idb`; proibido `localStorage`/`sessionStorage` para dados de
+  transcrição. (Um sinalizador de UI sem dados de transcrição — ex.: "já mostrámos este aviso" — não
+  é abrangido por esta regra; `useInstallPrompt`, Tarefa 3, já usa `localStorage` assim.)
+- Guarda-se apenas o `ScoreDocument`; proibido persistir áudio, PCM ou qualquer forma da gravação
+  original em IndexedDB, Cache API ou em qualquer outro sítio.
+- Todo o acesso ao IndexedDB passa por `@/features/library/repository.ts`; proibido abrir a base de
+  dados ou criar transações noutro módulo. `@/features/library/db.ts` é o único ficheiro que chama
+  `openDB` — `repository.ts` é o único que o importa.
+- `repository.save()` e `repository.update()` chamam `validateScoreDocument` antes de tocar no
+  IndexedDB e deixam a exceção subir tal e qual; nunca persistir um documento inválido (era um
+  requisito explícito do plano desta tarefa, não uma decisão tomada agora).
+- Toda a leitura de um documento persistido passa por `migrateDocument` (`@/lib/migrations`), que
+  trata versões inferiores e marca versões superiores como ilegíveis; um registo ilegível nunca
+  impede a lista de carregar — `repository.list()`/`get()` devolvem sempre a entrada, com
+  `result.legible === false`, em vez de lançar ou omitir.
+- As migrações de documento vivem em `@/lib/migrations` e são funções puras; qualquer alteração a
+  `ScoreDocument` (`@/lib/types`) incrementa `SCHEMA_VERSION` e acrescenta a entrada correspondente a
+  `MIGRATIONS` em `migrateDocument.ts` na mesma alteração de código — `SCHEMA_VERSION` sem migração
+  para lá chegar é o cenário exato que o registo "superior" existe para apanhar quando alguém se
+  esquece.
+- Uma transcrição concluída é guardada automaticamente (`useLibraryAutosave`, ligado em `App.tsx`);
+  correções e edições atualizam o mesmo registo com _debounce_ (`UPDATE_DEBOUNCE_MS`) em vez de
+  criar um novo. O `id` do registo atual vive numa ref, nunca em estado — não o duplicar nem o subir
+  para `sessionReducer` (a sessão não sabe nada sobre a biblioteca, e é bom que continue assim).
+- **A gravação inicial tem de ser deduplicada contra reentrância do próprio efeito** — o StrictMode
+  do React em desenvolvimento corre um efeito, o seu _cleanup_, e o efeito outra vez, antes da
+  primeira `save()` assíncrona terminar; sem uma promessa partilhada (`pendingSaveRef` em
+  `useLibraryAutosave`) cada uma das duas invocações chama `save()`, e cada uma tem o seu próprio
+  `crypto.randomUUID()` — duplica silenciosamente o registo. Verificado ao vivo (`?state=result`,
+  contagem de registos no IndexedDB antes/depois da correção). Não remover `pendingSaveRef` nem
+  voltar a um `cancelled` local por invocação — esse padrão (usado no resto da app para efeitos que
+  só leem, nunca escrevem) não chega aqui.
+- Falha de escrita por quota (ou qualquer outra) nunca é silenciosa: `LibrarySaveError` sobe da
+  `repository`, `useLibraryAutosave` mostra-a como `saveError`, e o resultado permanece visível no
+  ecrã — só não fica guardado.
+- Abrir uma transcrição da biblioteca (`session.openDocument`, ação `library/open` no
+  `sessionReducer`) entra direto em `result` com `notes: []` — a biblioteca nunca guardou
+  `NoteEvent[]` (decisão 4: só o `ScoreDocument`), por isso não há nada para repor aí. Quem abre tem
+  de chamar `useLibraryAutosave().associate(id, document)` ANTES de `session.openDocument` (mesmo
+  clique, síncrono) — sem isso o efeito de gravação automática trata o documento aberto como uma
+  transcrição nova e cria um duplicado.
+- A biblioteca é um estado de ecrã em `App.tsx` (`showLibrary`), não uma rota nem um estado de
+  `sessionReducer` — a sessão (gravar → processar → resultado) e a biblioteca são máquinas de estado
+  independentes que só se tocam via `openDocument`/`associate`.
+- O botão "voltar" (físico ou gesto, Android) fecha a biblioteca em vez de sair da app: abrir a
+  biblioteca empurra uma entrada no `history` do browser; o "voltar" do sistema dispara `popstate`,
+  que fecha a biblioteca; o botão de fechar dentro da própria view consome essa entrada com
+  `history.back()` em vez de a deixar pendurada — os dois caminhos convergem no mesmo `popstate`, não
+  há lógica de fecho duplicada. **Não verificado num dispositivo Android real** — este ambiente não
+  tem um; a engenharia via History API foi o que deu para fazer sem ele. Confirmar num Android real
+  antes de assumir a decisão 11 fechada.
+- A lista mostra sempre o aviso de armazenamento local (`library.localStorageNotice`) — mesma regra
+  do aviso de instrumento único da Tarefa 3: nunca atrás de ajuda, nunca só depois de perder algo.
+- `List`/`ListItem` (`@/components/List`) é o nono componente do inventário fechado (Tarefa 3,
+  decisão 2) — justificação: a biblioteca é a primeira coleção de tamanho variável do plano; a lista
+  de formatos de exportação (Tarefa 15) usa `Button` porque são quatro ações fixas.
+
+## Edição manual (Tarefa 17)
+
+- As operações de edição são exclusivamente: alterar altura, alterar duração, eliminar, inserir e
+  transpor (decisão 1). Não adicionar vozes, acordes, dinâmica, articulações, letra, gestão de
+  compassos ou qualquer outra funcionalidade de editor de partituras — quem precisa disso exporta
+  MusicXML (Tarefa 15) e usa um programa de notação a sério.
+- Toda a edição passa por funções puras em `@/lib/notation/edit.ts`
+  (`changePitch`, `changeDuration`, `deleteNote`, `insertNote`, `transpose`, mais
+  `resolveTiedGroup`/`getElementAt` de apoio) que recebem e devolvem um `ScoreDocument`; proibido
+  mutar o documento ou editar diretamente o SVG. Uma posição (`NotationPosition`) é sempre
+  `{ measureNumber, elementIndex }` — a mesma convenção dos atributos `data-measure`/`data-element`
+  do SVG (Tarefa 13, decisão 7): `measureNumber` é 1-indexado (`Measure.number`), `elementIndex` é
+  0-indexado dentro de `measure.elements`.
+- Toda a edição corre `validateScoreDocument` antes de o novo estado sair de `edit.ts`, e deixa a
+  exceção subir tal e qual (mesmo padrão de `repository.save`/`update`, Tarefa 16) — nunca a
+  intercetar dentro de `edit.ts`. É `useScoreEditor` (`@/features/notation`) que a apanha: mantém o
+  documento anterior e marca `error: true` (decisão 8). Uma rejeição "silenciosa" é diferente disto
+  — `changeDuration`/`insertNote` devolvem o MESMO documento (por referência) quando a figura pedida
+  não cabe no espaço livre (ver abaixo); isso não é um erro de validação e não mostra aviso, é só a
+  operação a não fazer nada.
+- Alterar a duração de uma nota requantiza só o compasso afetado (decisão 5), nunca desloca os
+  inícios das notas seguintes: a nova figura absorve o espaço da própria nota mais as pausas
+  consecutivas a seguir (até à próxima nota ou ao fim do compasso), e o que sobrar decompõe-se em
+  pausas novas (`decomposeRestTicks`, Tarefa 10, reutilizada). Se a figura pedida não couber nesse
+  espaço, a operação não faz nada (mesmo documento, por referência) em vez de requantizar o resto do
+  compasso — a alternativa que as Notas/Dependências da tarefa aceitam explicitamente. A interface
+  (`EditToolbar`) não filtra as figuras oferecidas por tamanho disponível; o utilizador pode pedir
+  uma que não caiba e nada visivelmente acontece — aceite pela mesma razão.
+- A seleção de notas resolve-se pelos atributos `data-measure`/`data-element`; proibido depender da
+  ordem dos nós SVG gerados pelo VexFlow. A área sensível ao toque de cada elemento é alargada por
+  um `<rect>` invisível (`MIN_TOUCH_TARGET = 44`, `ScoreView.tsx`) inserido como primeiro filho do
+  grupo `[data-measure][data-element]` — sem isto, seleccionar uma nota com o dedo em telefone é
+  impraticável (cabeças de nota são bem mais pequenas do que 44px).
+- Operações sobre uma parte de uma nota ligada aplicam-se a todas as partes do mesmo `sourceIndex`
+  (`resolveTiedGroup`) — hoje isto cobre `changePitch` e `deleteNote`; `changeDuration` opera só na
+  posição selecionada, mesmo que faça parte de uma ligadura (redimensionar todas as partes de uma
+  ligadura em conjunto ficou fora do âmbito desta tarefa — a alternativa aceite pelas
+  Notas/Dependências é mais simples e mantém o documento sempre válido).
+- Transpor (`transpose`) recalcula alturas, tonalidade (`tonic`, `sharpsOrFlats` via
+  `keySignatureFor`), grafia (`toNotationElements`/`applyAccidentals`, reaproveitados via
+  `respellMeasures`) e clave (`chooseClef`); proibido transpor alterando só a armação. `mode`
+  mantém-se — só a tónica se desloca pelos semitons pedidos.
+- Desfazer/refazer (`useScoreEditor`) é uma pilha de `ScoreDocument` completos, limitada a 30
+  estados (`HISTORY_LIMIT`); proibido implementar operações inversas. As pilhas vivem em estado do
+  React (não numa ref) e são reiniciadas implicitamente a cada montagem — não existe desfazer entre
+  sessões nem persistido.
+- Os controlos globais (BPM, tonalidade, título) aparecem antes da edição nota a nota em
+  `ResultView` (decisão 2) — a maioria dos erros percebidos resolve-se corrigindo o andamento ou a
+  tonalidade, não nota a nota. Não reordenar.
+- Qualquer edição (as cinco operações, desfazer e refazer) para a reprodução em curso primeiro
+  (`stopPlayback`, chamado no início de `useScoreEditor.applyEdit`/`undo`/`redo`) — os osciladores
+  agendados (Tarefa 14) já não corresponderiam ao documento novo.
+- "Oitava com um gesto secundário" (decisão 4) foi resolvida com um SEGUNDO PAR de botões
+  (`ArrowUpIcon`/`ArrowDownIcon` em `variant="ghost"`, ±12 semitons) em vez de um gesto de
+  arrastar/premir longo — mais robusto ao toque e mais descobrível do que um gesto escondido; a
+  decisão continua satisfeita em espírito (visualmente secundário ao par de semitom), não na letra
+  literal de "gesto".
+- A gravação automática (Tarefa 16) e a exportação (Tarefa 15) não precisaram de nenhuma alteração
+  para refletir edições: as duas já consomem `ScoreDocument` diretamente da sessão, que
+  `useScoreEditor` mantém atualizado via `onChange` (`session.replaceDocument`) a cada edição
+  aceite — verificado ao vivo (transpor, apagar, inserir e desfazer sem gerar avisos de gravação
+  nem exportar dados obsoletos).
+
+## Acessibilidade e idioma (Tarefa 18)
+
+- Todo o percurso funcional é operável por teclado com indicador de foco visível
+  (`:focus-visible` em `global.css`); proibido remover o indicador de foco (`outline: none`) sem
+  substituto igualmente visível. A única exceção existente é o `.viewport` do `Toast`
+  (`ToastProvider`/Radix) — é o próprio padrão acessível do Radix Toast (a região só recebe foco
+  programático via F6, nunca por Tab; os controlos lá dentro, como o botão de fechar, continuam com
+  o indicador normal).
+- Mudanças de estado assíncronas são anunciadas por `aria-live`: `polite` para progresso e
+  conclusão, `assertive` só para erros (`role="alert"`, que já é `aria-live="assertive"` implícito —
+  ver `Alert`). Progresso é anunciado por marcos (25/50/75/100%), nunca a cada atualização —
+  `useMilestoneAnnouncement` (`@/features/session/views`), ligado a `ProcessingView` por uma região
+  `aria-live="polite"` própria (`.sr-only`), separada do nome da etapa (que já muda por si só só
+  quatro vezes ao todo). Não ligar `aria-live` diretamente a `state.progress` — é isso que decisão 2
+  proíbe explicitamente.
+- O SVG da pauta (`ScoreView`) tem sempre `role="img"` + `aria-label` gerado por
+  `describeScore(doc)` (`@/lib/notation/describe.ts`) — não há forma de tornar o desenho do VexFlow
+  navegável por leitor de ecrã, mas isto dá o essencial (tonalidade, compasso, andamento, clave,
+  número de compassos, tessitura) de imediato. A lista textual completa das notas
+  (`describeNotes(doc)`, mesmo ficheiro) está disponível a pedido, por um botão
+  (`notation.showNotesList`/`hideNotesList`) — nunca sempre visível (é densa de mais) nem só para
+  leitor de ecrã (é útil a quem não sabe ler pauta). As duas funções são puras e só leem
+  `ScoreDocument` — nunca podem divergir do que está desenhado porque não há um segundo sítio onde a
+  informação viva. `describe.ts` é o primeiro ficheiro em `@/lib` a importar de `@/strings`: a regra
+  geral de `@/lib` ser puro (sem DOM/IO) continua a valer, mas o trabalho destas duas funções é
+  compor texto em pt-PT a partir do documento, e duplicar a tabela de nomes de notas/figuras em vez
+  de reaproveitar `@/strings` seria a duplicação que este ficheiro existe para evitar.
+- Navegação nota a nota por teclado (`editor.selectPrevious`/`selectNext`, `@/lib/notation/edit.ts`
+  `allPositions`) — os botões "nota anterior"/"nota seguinte" em `ResultView` são o caminho por
+  teclado para selecionar uma nota, já que o SVG (`role="img"`) não é navegável por leitor de ecrã e
+  os retângulos de área sensível ao toque (Tarefa 17, decisão 3) não são focáveis. Não remover estes
+  botões nem assumir que clicar no SVG é o único caminho de seleção.
+- Gestão de foco nas transições de estado: `ResultView` foca a região da pauta (`Sheet` com
+  `tabIndex={-1}`) na montagem; `ErrorView` foca um invólucro à volta do `Alert` (que não encaminha
+  `ref`) na montagem; `EditToolbar` foca o primeiro controlo só na transição de "nada selecionado"
+  para "algo selecionado" (nunca ao trocar de nota para nota — isso lutaria com a navegação
+  nota-a-nota acima); a biblioteca (Tarefa 16) devolve o foco ao botão que a abriu, ao fechar, pelos
+  dois caminhos de fecho (`history.back()`/`setShowLibrary(false)`). Cada view de estado principal é
+  montada de novo a cada transição (Tarefa 3, decisão 7), por isso um efeito sem dependências que
+  corre na montagem é o mecanismo certo — não inventar outro.
+- Contraste mínimo 4.5:1 para texto e 3:1 para elementos gráficos, nos dois temas — verificado por
+  cálculo a partir dos valores de `tokens.css` (fórmula de luminância relativa do WCAG), não a
+  olho. `--color-border` foi corrigido nesta tarefa (`#dededa`/`#33333a`, ~1.3:1, para
+  `#8a8a83`/`#77777f`, ~3.4-3.7:1): é o contorno de `Input` e de `Button variant="secondary"`, não
+  só decorativo — dizia onde o campo/botão acaba. Qualquer novo token de cor tem de ser verificado
+  contra os fundos onde vai aparecer antes de entrar em `tokens.css`.
+- `prefers-reduced-motion: reduce` (`global.css`) já elimina toda a animação/transição decorativa
+  (regra `!important` genérica); o cursor de reprodução e o indicador de nível mantêm-se por serem
+  informação, não decoração. `.viewport` de `ScoreView` usa `scroll-behavior: smooth` para o
+  auto-scroll a seguir o cursor — a mesma regra global torna isto instantâneo sob a preferência, sem
+  tratamento à parte.
+- Alvos de toque com pelo menos 44×44 px (`--touch-target-min`, `tokens.css`, já aplicado em
+  `Button`/`IconButton`/`Input`); as notas da pauta são a única exceção documentada e usam áreas de
+  toque invisíveis alargadas (`MIN_TOUCH_TARGET`, `ScoreView.tsx`, Tarefa 17, decisão 3).
+- Proibido `role`/`aria-*` que dupliquem semântica nativa de HTML (ex.: `role="button"` num
+  `<button>`). `role="alert"`/`role="status"`/`role="img"` usados na app são todos legítimos — vão
+  em elementos sem esse papel nativo (`<div>`, `<svg>`).
+- Terminologia musical em pt-PT correta: semibreve, mínima, semínima, colcheia, semicolcheia (não
+  "corchea"/"semicorchea" — são espanhol, não português; alguns comentários internos mais antigos em
+  `@/lib/quantize` ainda usam a forma espanhola por engano, mas não são texto visível ao utilizador,
+  por isso ficaram de fora do âmbito desta revisão). Todo o texto novo desta tarefa usa a forma
+  correta (`edit.noteTypeNames`, Tarefa 17, já a usava).
+- `axe-core` corre nos testes de componentes e nalguns ecrãs principais (`IdleView`, `RecordingView`,
+  `ProcessingView`, `ErrorView`, `LibraryView`) via `expectNoA11yViolations` (`@/test/axe`) — ver
+  "Testes de componentes" abaixo para o que essa função faz e não faz. Encontrou e corrigiu uma
+  violação real: o `<input type="file">` escondido em `IdleView` não tinha nome acessível
+  (`aria-label={idle.pickFile}` adicionado).
+- **Não foi possível fazer a auditoria manual com leitor de ecrã (NVDA/VoiceOver) nesta sessão** —
+  não há nenhum dos dois disponível neste ambiente. O que ficou feito foi revisão de código
+  sistemática (papéis, rótulos, `aria-live`, ordem de foco) mais `axe-core` automatizado, que a
+  própria tarefa reconhece como cobrindo só metade dos problemas — a auditoria manual, que é onde
+  está o valor real desta tarefa (Notas/Dependências), fica por fazer. Fazer antes de considerar a
+  decisão 4 fechada.
+
+## Desempenho e limites (Tarefa 19)
+
+- Nenhuma alteração motivada por desempenho entra sem medição antes/depois registada em
+  `docs/performance.md`. **A linha de base desse documento está incompleta**: não há dispositivos
+  reais neste ambiente de desenvolvimento, e os três níveis pedidos pela decisão 2 (telefone
+  modesto, telefone recente, portátil) nunca foram medidos — ver a nota no topo do próprio
+  documento antes de confiar em qualquer limite abaixo em produção.
+- Os limites de duração de áudio (`MAX_DURATION_MS`/`MIN_DURATION_MS`,
+  `@/lib/performance/durationLimit.ts`) derivam das medições em `docs/performance.md`; alterá-los
+  exige atualizar essas medições, não só a constante. **Continuam provisórios** (herdados das
+  Tarefas 4/5 sem confirmação numérica) — ver o mesmo documento.
+- O limite efetivo de duração é sempre visível ao utilizador (`idle.maxDurationNotice`,
+  `truncateBody`/`truncateConfirm` — todos funções de `seconds`, não texto fixo, desde esta tarefa);
+  a deteção de capacidade do dispositivo (`detectDeviceCapability`,
+  `@/features/capture/deviceCapability.ts`, lendo `navigator.hardwareConcurrency`/`deviceMemory`)
+  escolhe um valor por omissão (`chooseDurationLimitMs`, puro, `@/lib/performance/durationLimit.ts`)
+  e nunca bloqueia uma ação — a deteção é grosseira e pode errar. Não duplicar a leitura do
+  `navigator` fora de `deviceCapability.ts`; a decisão do valor fica só na função pura.
+- Áudio é processado por janelas com libertação incremental de memória
+  (`TRANSCRIBE_WINDOW`/`planWindows`/`mergeWindowedNotes` em `@/lib/transcribe`,
+  `transcribe.worker.ts`) — proibido voltar a entregar a duração inteira ao modelo num único
+  `evaluateModel`. As janelas sobrepõem-se (`OVERLAP_SEC`) e os fragmentos da mesma nota nas
+  fronteiras fundem-se sempre com `mergeWindowedNotes` (reaproveita `mergeFragmented`, Tarefa 8,
+  decisão 6) — nunca aceitar uma nota partida em dois como resultado final. `frames`/`onsets`/
+  `contours` (Tarefa 7) são locais a cada janela (`transcribeWindow`), nunca acumulados para a peça
+  inteira. Os valores de `TRANSCRIBE_WINDOW` são provisórios (mesma razão dos limites de duração).
+- Todo o `postMessage` de um buffer de áudio usa `transfer` — confirmado por leitura de código nesta
+  tarefa (`usePreprocessAudio`, `useTranscriber`, `audio.worker.ts`, `recorder.worklet.ts`); já
+  estava correto desde as Tarefas 4/6/7, não foi preciso alterar nada. Qualquer `postMessage` novo
+  com um buffer grande tem de manter isto.
+- O bundle inicial não inclui o modelo nem o VexFlow (os dois só entram por `import()` dinâmico,
+  guardrail já existente da Tarefa 15) e respeita o orçamento verificado na build
+  (`scripts/check-bundle-budget.js`, chamado por `pnpm build` a seguir a `vite build`) — mede o gzip
+  de cada `<script>` referenciado em `dist/index.html` e falha a build (`process.exit(1)`) acima de
+  `BUDGET_KB`. Não subir `BUDGET_KB` sem justificação escrita na alteração que o exige; não duplicar
+  esta verificação com `chunkSizeWarningLimit` do Vite (esse fica só como aviso genérico por chunk).
+- Mudar o backend de execução do modelo (Tarefa 7, decisão 2: WASM) exige demonstrar, nos três
+  níveis de dispositivo, que é mais rápido E que produz os mesmos resultados — **não feito nesta
+  sessão**, pela mesma falta de dispositivos reais; o backend mantém-se WASM.
+- A app respondeu ao toque e mostrou progresso monótono durante uma transcrição de teste neste
+  ambiente (áudio sintético de 15 s, ver `docs/performance.md`) — não é a verificação no dispositivo
+  mais fraco que a decisão 6 pede, só uma confirmação de que o pipeline por blocos não regrediu a
+  responsividade que a arquitetura de workers (Tarefas 6/7) já garantia.
+
 ## PWA e service worker (Tarefa 2)
 
 - `src/sw.ts` é escrito à mão (`strategies: 'injectManifest'` em `vite.config.ts`); proibido mudar
@@ -629,11 +897,11 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   opção de configuração, verificar se o fluxo principal (gravar → ver pauta → exportar) fica
   mesmo melhor com ele. A resposta por omissão é não.
 - Inventário de componentes fechado: `Button`, `IconButton`, `Sheet`, `Progress`, `Alert`,
-  `Spinner`, `Toast` (`src/components/`, cada um com `index.ts` + `.types.ts` + `.module.css` +
-  `.test.tsx`). Acrescentar um oitavo exige justificação escrita na tarefa que o introduz — a
-  Tarefa 16 provavelmente precisa de uma `List`, a Tarefa 17 de um controlo de seleção, e é lá que
-  se decide, não antes. `icons/` e `cx.ts` não contam para este inventário: são suporte (glifos e um
-  utilitário de classes), não primitivas de interação com opinião de design própria.
+  `Spinner`, `Toast`, `Input`, `List` (`src/components/`, cada um com `index.ts` + `.types.ts` +
+  `.module.css` + `.test.tsx`). Acrescentar um décimo exige justificação escrita na tarefa que o
+  introduz — a Tarefa 17 provavelmente precisa de um controlo de seleção, e é lá que se decide, não
+  antes. `icons/` e `cx.ts` não contam para este inventário: são suporte (glifos e um utilitário de
+  classes), não primitivas de interação com opinião de design própria.
 - Não introduzir bibliotecas de componentes (MUI, Chakra, shadcn) nem frameworks de CSS (Tailwind,
   styled-components) — CSS Modules + tokens é a única abordagem de estilo. Radix (pacote unificado
   `radix-ui`) só entra onde há acessibilidade não trivial a resolver (hoje: só `Toast`); um `<button>`
@@ -685,6 +953,138 @@ speed)` divide `startSec`/`durationSec` por `speed`; `midiToFrequency` não rece
   arrastar. Não remover nenhuma das duas partes.
 - Todo componente do inventário fechado tem `ComponentName.test.tsx`: renderiza, responde a
   interação (`@testing-library/user-event`), e cobre o estado desativado quando aplicável.
+- Todo componente do inventário fechado, e os ecrãs principais que tenham teste, incluem um teste
+  `'não tem violações de acessibilidade'` que chama `expectNoA11yViolations(container)`
+  (`@/test/axe`, Tarefa 18) — corre `axe-core` sobre o nó montado e falha com uma mensagem legível
+  se houver violações. A regra `color-contrast` vem desligada nesse helper: o jsdom não pinta nada a
+  sério, por isso não tem dados fiáveis para essa regra — o contraste verifica-se à parte, a partir
+  dos valores de `tokens.css` (secção "Acessibilidade e idioma" abaixo). Não remover essa exceção
+  nem tentar "corrigir" um falso positivo de `color-contrast` em teste — não é real.
+- **Testes de `axe-core` podem falhar por timeout (5000ms) sob carga do sistema** (várias corridas
+  de teste/lint/build em paralelo) — `axe.run()` é razoavelmente pesado e o limite por omissão do
+  Vitest é apertado para isso. Confirmado na Tarefa 20: o mesmo teste passa isolado
+  (`vitest run caminho/do/ficheiro.test.tsx`) sempre que falhou em conjunto com outro trabalho
+  pesado a correr ao mesmo tempo. Antes de assumir uma regressão real, correr o ficheiro isolado.
+
+## Testes (Tarefa 20)
+
+- Pirâmide assimétrica (decisão 1): a maior parte da suite cobre `@/lib` (lógica pura); poucos
+  testes end-to-end (Playwright, `e2e/`), cobrindo percursos, não detalhes musicais — não escrever
+  testes que pontuem "qualidade musical" automaticamente (decisão 9); o que se testa é estabilidade
+  (mesma entrada → mesmo resultado, ou uma mudança revista à mão), nunca "isto soa bem".
+- **Fixtures de áudio sintético** (`tests/fixtures/audio/generate.js`, `pnpm generate-audio-fixtures`)
+  — WAV pequenos e determinísticos (nunca `Math.random()` cru; o gerador de ruído usa um PRNG com
+  semente fixa, `mulberry32`), versionados como `*.min.wav` (única exceção ao `.gitignore` que
+  ignora áudio pesado em `tests/fixtures/audio/`). Proibido adicionar gravações reais ou ficheiros
+  de música com direitos ao repositório.
+- **Testes de regressão** (`e2e/regression.spec.ts`) correm sobre esses fixtures, com inferência
+  real (nada de duplo de teste aqui — decisão 4, é o único sítio que a usa) e comparam contra um
+  _snapshot_ do Playwright (`e2e/regression.spec.ts-snapshots/*.txt`) da lista textual de notas
+  (`describeNotes`, Tarefa 18) e da confiança agregada — texto legível por uma pessoa, não o
+  `ScoreDocument` inteiro em JSON. **Os esperados só se atualizam com `--update-snapshots` revisto à
+  mão antes de committar** (decisão 3) — nunca em bloco, nunca sem ler o diff nota a nota e explicar
+  no commit porque o resultado novo é melhor. `rhythm.min.wav` usa a mesma altura repetida de
+  propósito: uma tentativa de alternar duas alturas para dar variedade rítmica desencadeou um bug
+  real de quantização (ver abaixo) — documentado no próprio `generate.js`, não silenciado.
+- **Bug real encontrado ao preparar os fixtures, não corrigido nesta tarefa**: certas combinações de
+  duração/altura fazem `@/lib/quantize/quantize.ts` lançar `[quantize] compasso N soma X ticks,
+esperado 1920` — um compasso deixa de somar `QUANTIZE.MEASURE_TICKS`. Sinalizado como tarefa à
+  parte (não é do âmbito da Tarefa 20 mexer em `quantize.ts`). O que É desta tarefa, e está feito: a
+  exceção já não escapa por apanhar — ver o ponto seguinte.
+- **`useTranscriber` apanha agora qualquer exceção do pipeline pós-inferência** (limpeza → tempo →
+  quantização → tonalidade → notação) e falha a sessão (`session.fail('transcribe-failed', true)`)
+  em vez de a deixar presa em "processing" para sempre com progresso a 100% e sem erro nenhum
+  visível — era exatamente o que o bug de quantização acima produzia antes desta correção. Proibido
+  remover este `try/catch`; é a única coisa entre uma exceção de biblioteca interna e uma sessão
+  presa sem forma de recuperar exceto recarregar a página.
+- **Duplo de teste do worker de transcrição** (`@/test/fakeWorker.ts`, `installFakeWorker`) —
+  substitui o `Worker` global por uma classe que expõe `postMessage`/`terminate` espiados e um
+  método `emit(data)` para simular respostas; `useTranscriber.test.ts` e
+  `usePreprocessAudio.test.ts` usam-no para testar a máquina de estados da sessão sem carregar
+  TensorFlow.js nem o modelo real. Proibido carregar o modelo real fora de `e2e/regression.spec.ts`.
+- **Playwright** (`playwright.config.ts`, `e2e/`) corre sempre sobre `pnpm preview` (produção) — o
+  service worker está desativado em `pnpm dev` de propósito (Tarefa 2), e testar PWA/offline em
+  desenvolvimento não testaria nada. `pnpm build` tem de correr antes de `pnpm test:e2e`
+  localmente — `webServer` não o faz por si (repetiria ~20s a cada arranque do Playwright).
+  Um só projeto (Chromium): é o único a aceitar `--use-fake-device-for-media-stream` +
+  `--use-file-for-fake-audio-capture=<caminho>` para simular o microfone com um ficheiro WAV
+  (decisão 6) — precisa também de `--use-fake-ui-for-media-stream` (sem ele, `getUserMedia` falha
+  com `NotSupportedError` mesmo com o dispositivo falso) e de `/` em vez de `\` no caminho do
+  ficheiro no Windows.
+- **Testes de componentes consultam por papel e por texto acessível** (decisão 5) — já era a
+  convenção desde a Tarefa 3; nada mudou aqui, só passou a ser regra escrita.
+- **Cobertura como diagnóstico, não meta** (decisão 8) — `vitest.config.ts`,
+  `coverage.thresholds['src/lib/**']`, agregado (não `perFile`) sobre `statements`/`lines` 85%,
+  `functions` 90%, `branches` 75%. Nenhum mínimo para `@/features`/`@/components`/`src/workers` —
+  subiria a cobertura à custa de testes escritos só para a percentagem em código de interface
+  trivial, que a decisão 8 proíbe explicitamente. `pnpm test:coverage` (não `pnpm test`, que fica
+  sem instrumentação de propósito — decisão "a suite unitária corre em segundos").
+- Casos limite cobertos: áudio em silêncio (`silence.min.wav` → erro `too-quiet`, Tarefa 4), uma só
+  nota (fixtures), ficheiro corrompido (`e2e/import-export.spec.ts`, "recupera de um erro
+  conhecido"), documento de `schemaVersion` superior (Tarefa 16, `migrateDocument.test.ts`, já
+  existia), quota esgotada (Tarefa 16, `repository.test.ts`, já existia), permissão de microfone
+  negada (Tarefa 4, `useMicrophone.test.ts`, já existia) — o que faltava e ficou coberto agora é o
+  ficheiro corrompido e, por acidente feliz de os ter procurado, o bug de quantização acima.
+
+## Erros e telemetria (Tarefa 21)
+
+- **Catálogo único de erros** (`@/lib/errors.ts`, decisão 1) — todo o erro da app vive lá: código,
+  título, mensagem, ação sugerida, recuperabilidade. Proibido criar erros ad-hoc numa feature ou
+  mostrar ao utilizador um erro sem ação sugerida — `errors.test.ts` verifica que nenhuma entrada
+  fica sem `action`, `title` ou `body` não vazios. `src/strings/errors.ts` importa daqui
+  (`getErrorEntry`) — deixou de ser a fonte, é só a camada que a interface consome.
+- **Detalhes técnicos nunca vão para a interface** (decisão 3) — mensagem original, `stack trace` e
+  contexto ficam só no registo local (`@/features/diagnostics/errorLog.ts`); a interface mostra
+  sempre a mensagem do catálogo, indexada por `code`.
+- **Registo local em anel** (`@/features/diagnostics/errorLog.ts`, `db.ts`, decisão 4) — até
+  `ERROR_LOG_LIMIT` (50) entradas numa base de dados IndexedDB própria, `pauta-diagnostics`,
+  **separada** de `pauta-library` (Tarefa 16): o registo de erros nunca pode competir com as
+  transcrições pela quota de armazenamento. `logError()` nunca lança — uma falha a registar um erro
+  cai em `console.error`, nunca propaga para quem estava a falhar.
+- **`DiagnosticsView`** (`@/features/diagnostics/views/DiagnosticsView.tsx`) — acessível por um botão
+  discreto no cabeçalho (`WrenchIcon`, ao lado do da biblioteca), fora do fluxo principal, sem
+  `history.pushState` (ao contrário da biblioteca, Tarefa 16 decisão 11: não é um destino que
+  alguém espere alcançar com o botão físico "voltar"). Mostra o registo de erros (copiar, exportar
+  como ficheiro via `shareOrDownload`, limpar com confirmação), informação do dispositivo/app
+  (`__APP_VERSION__`, injetada por `define` em `vite.config.ts`/`vitest.config.ts` a partir de
+  `package.json` — nunca duplicar o número à mão) e o controlo de consentimento de telemetria.
+- **Erro de worker sempre propagado com código; `onerror` e `onmessageerror` sempre tratados**
+  (decisão 5) — `useTranscriber`/`usePreprocessAudio` tratam os dois; nenhum passa por `onmessage`,
+  por isso não podem ficar sem handler próprio. A app nunca pode ficar presa em `processing`.
+- **Limite de tempo em toda a operação assíncrona** (decisão 6) — dois mecanismos, conforme o tipo
+  de operação, nunca misturados:
+  - Baseada em worker (pré-processamento, transcrição): `setTimeout` armado a cada `postMessage` e
+    reiniciado a cada mensagem de progresso (sinal de vida), implementado diretamente em
+    `useTranscriber`/`usePreprocessAudio` — dispara `operation-timeout` e termina o worker. Não usar
+    `withTimeout` aqui: precisa de terminar o worker, não só rejeitar uma promessa.
+  - Baseada em promessa (escrita em IndexedDB, `@/features/library/repository.ts`):
+    `@/lib/withTimeout.ts`, `WRITE_TIMEOUT_MS`.
+  - Exportação (`@/features/export`) fica de fora de propósito: `shareOrDownload` pode abrir o
+    postal de partilha do sistema, que espera por uma escolha do utilizador — "esgotar o tempo"
+    nesse caso seria um bug, não uma proteção.
+- **Telemetria opt-in, desligada por omissão, sem destino** (decisão 7) — `@/lib/telemetry.ts`
+  prepara só a fila de eventos e a validação da lista permitida; **não envia nada para lado
+  nenhum**, não há função `send`/`flush`. O consentimento (`getTelemetryConsent`/
+  `setTelemetryConsent`) vive em `@/features/diagnostics/telemetryConsent.ts`, não em `@/lib` — `@/lib`
+  é puro, sem `localStorage` (guardrail de ESLint, `no-restricted-globals`). Ligar um destino a
+  sério exige escolher o serviço, abrir a CSP para esse domínio e atualizar
+  `docs/architecture.md`/`README.md` — não é uma alteração de configuração.
+- **Lista fechada de campos de telemetria, verificada em código** (decisão 8) —
+  `recordEvent(event, consent)` em `@/lib/telemetry.ts` lança `TelemetryFieldNotAllowedError` para
+  qualquer campo fora de `errorCode`, `audioDurationBucket`, `inputType`, `deviceTier`,
+  `appVersion`, `processingTimeBucket` — a validação corre sempre, com ou sem consentimento (um
+  campo proibido é um bug a apanhar em desenvolvimento). Nunca: áudio, notas, alturas, títulos,
+  nomes de ficheiro, identificadores.
+- **Proibido qualquer identificador de utilizador ou de instalação, mesmo anónimo** (decisão 9) —
+  nenhum `crypto.randomUUID()` nem equivalente gerado ou persistido para este fim (a biblioteca
+  usa `crypto.randomUUID()` para o `id` de cada transcrição, Tarefa 16 — isso é diferente, é a
+  chave de um registo, não um identificador de pessoa ou instalação).
+- **`AppErrorBoundary` preserva e comunica o resultado guardado** (decisão 10) — ao apanhar um
+  erro, regista no diagnóstico local (`logError`) e consulta `count()` da biblioteca
+  (`@/features/library/repository.ts`); se houver pelo menos um registo guardado, mostra
+  `crash.savedNotice`. Não é uma garantia perfeita de que É a transcrição mais recente que ficou
+  guardada (o crash podia ter acontecido antes da gravação automática, Tarefa 16 decisão 5) — é o
+  sinal honesto que dá para mostrar sem inventar mais estado.
 
 ## Qualidade
 

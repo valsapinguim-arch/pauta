@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { Alert, IconButton, Spinner } from '@/components'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { Alert, Button, IconButton, Spinner } from '@/components'
 import { MinusIcon, PlusIcon } from '@/components/icons'
+import { describeNotes, describeScore } from '@/lib/notation/describe'
+import type { NotationPosition } from '@/lib/notation/edit'
 import type { ScoreDocument } from '@/lib/types'
 import { notation } from '@/strings'
 import { drawScore } from './drawScore'
@@ -13,6 +15,15 @@ import { useElementSize } from './useElementSize'
  *  píxeis antes do `viewBox`/zoom escalar) — só o suficiente para não colar
  *  ao desenho da nota. */
 const CURSOR_PADDING = 4
+
+/** Área sensível mínima ao toque, em unidades do SVG (Tarefa 17, decisão 3)
+ *  — mesmo valor de `--touch-target-min` em `tokens.css`, repetido aqui
+ *  como número puro porque isto corre em espaço de coordenadas do SVG, não
+ *  em CSS (mesmo padrão de `CURSOR_PADDING`/`ZOOM_STEPS` nesta função:
+ *  literais, não tokens). Cabeças de nota desenhadas são bem mais pequenas
+ *  do que isto em telefone — sem alargar a área clicável, selecionar uma
+ *  nota com o dedo é impossível. */
+const MIN_TOUCH_TARGET = 44
 
 /** Zoom em passos (decisão 6 da Tarefa 13) — não contínuo: um número fixo
  *  de níveis é suficiente e evita recalcular a cada pixel arrastado. */
@@ -56,6 +67,16 @@ export interface ScoreViewProps {
   /** Nota atualmente a soar (Tarefa 14) — `undefined`/`null` fora de
    *  reprodução, sem cursor nenhum desenhado. */
   cursor?: PlaybackCursor | null | undefined
+  /** Posição selecionada para edição (Tarefa 17) — realçada com um
+   *  contorno, distinto do preenchimento do cursor de reprodução (os dois
+   *  não deviam aparecer ao mesmo tempo na prática: decisão 11, qualquer
+   *  edição para a reprodução). `null`/`undefined` = nada selecionado. */
+  selection?: NotationPosition | null | undefined
+  /** Clique/toque numa nota ou pausa (Tarefa 17, decisão 3) — `null`
+   *  quando o clique não acertou em nenhum elemento (des-seleciona). Sem
+   *  isto, o SVG não responde a cliques (só leitura, como até à Tarefa
+   *  16). */
+  onSelect?: ((position: NotationPosition | null) => void) | undefined
   /** Chamado com o `<svg>` acabado de desenhar, ou `null` quando deixa de
    *  existir (sem notas, ou antes do primeiro desenho) — Tarefa 15: a
    *  exportação para PNG/PDF precisa do SVG exatamente como está no ecrã
@@ -66,15 +87,27 @@ export interface ScoreViewProps {
 
 /**
  * Desenha `document` com VexFlow — Tarefa 13. Só lê o `ScoreDocument`
- * (decisão 9, guardrail em `AGENTS.md`); nunca o modifica — isso é a Tarefa
- * 17. Sem edição: notas desenhadas não respondem a cliques.
+ * (decisão 9, guardrail em `AGENTS.md`); nunca o modifica — quem muda o
+ * documento é sempre `@/lib/notation/edit` (Tarefa 17), nunca este
+ * componente. Com `onSelect` ligado, cliques/toques resolvem-se pelos
+ * atributos `data-measure`/`data-element` (decisão 3 da Tarefa 17) e sobem
+ * como uma posição — nunca por depender da ordem dos nós que o VexFlow
+ * gera.
  */
-export function ScoreView({ document: scoreDocument, cursor, onSvgReady }: ScoreViewProps) {
+export function ScoreView({
+  document: scoreDocument,
+  cursor,
+  selection,
+  onSelect,
+  onSvgReady,
+}: ScoreViewProps) {
   const [vf, setVf] = useState<VexFlowModule | null>(null)
   const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
+  const [notesListOpen, setNotesListOpen] = useState(false)
   const { ref: viewportRef, width: viewportWidth } = useElementSize<HTMLDivElement>()
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const cursorElRef = useRef<SVGRectElement | null>(null)
+  const selectionElRef = useRef<SVGRectElement | null>(null)
   /* Em ref, não direto nas deps do efeito de desenho: `onSvgReady` é quase
      sempre uma função nova a cada render de quem usa `ScoreView`
      (`ResultView.tsx`) e não deve forçar um redesenho VexFlow inteiro só
@@ -83,6 +116,13 @@ export function ScoreView({ document: scoreDocument, cursor, onSvgReady }: Score
   useEffect(() => {
     onSvgReadyRef.current = onSvgReady
   }, [onSvgReady])
+  /* Mesmo padrão de `onSvgReadyRef` — `onSelect` (Tarefa 17) muda de
+     identidade a cada render de `ResultView`, e não deve forçar um
+     redesenho inteiro do VexFlow. */
+  const onSelectRef = useRef(onSelect)
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  }, [onSelect])
 
   useEffect(() => {
     let cancelled = false
@@ -113,11 +153,48 @@ export function ScoreView({ document: scoreDocument, cursor, onSvgReady }: Score
     if (svg) {
       svg.setAttribute('width', String(contentWidth * zoom))
       svg.setAttribute('height', String(totalHeight * zoom))
+
+      // Descrição textual (Tarefa 18, decisão 3) — não há forma de tornar o
+      // desenho do VexFlow navegável por leitor de ecrã, mas `role="img"` +
+      // `aria-label` dá o essencial de imediato. Gerada do mesmo
+      // `scoreDocument` que o VexFlow acabou de desenhar — nunca pode
+      // divergir do que está no ecrã.
+      svg.setAttribute('role', 'img')
+      svg.setAttribute('aria-label', describeScore(scoreDocument))
+
+      // Área sensível alargada por elemento (Tarefa 17, decisão 3) — um
+      // retângulo invisível, do tamanho de `MIN_TOUCH_TARGET` no mínimo,
+      // inserido como primeiro filho de cada grupo `[data-measure]
+      // [data-element]`. Fica dentro do próprio grupo (não ao lado) para o
+      // clique continuar a resolver-se por `closest` sem duplicar
+      // atributos `data-*`.
+      svg.querySelectorAll<SVGGElement>('[data-measure][data-element]').forEach((group) => {
+        const box = group.getBBox()
+        const width = Math.max(box.width, MIN_TOUCH_TARGET)
+        const height = Math.max(box.height, MIN_TOUCH_TARGET)
+        const hitRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        hitRect.setAttribute('x', String(box.x - (width - box.width) / 2))
+        hitRect.setAttribute('y', String(box.y - (height - box.height) / 2))
+        hitRect.setAttribute('width', String(width))
+        hitRect.setAttribute('height', String(height))
+        hitRect.setAttribute('fill', 'transparent')
+        // Sem isto herda `stroke: currentColor` da regra em
+        // `ScoreView.module.css` (para as notas do VexFlow apanharem a cor
+        // do tema) — ficava com contorno visível em vez de invisível, bug
+        // real só visto ao tirar um screenshot a sério de um resultado
+        // grande (Tarefa 21, sessão de testes manual).
+        hitRect.setAttribute('stroke', 'none')
+        hitRect.style.pointerEvents = onSelectRef.current ? 'all' : 'none'
+        hitRect.style.cursor = onSelectRef.current ? 'pointer' : 'default'
+        group.insertBefore(hitRect, group.firstChild)
+      })
     }
 
     // `drawScore` limpa o contentor a cada redesenho (Tarefa 13, decisão 4)
-    // — o cursor, se existia, foi destruído com o resto do SVG anterior.
+    // — o cursor e a seleção, se existiam, foram destruídos com o resto do
+    // SVG anterior.
     cursorElRef.current = null
+    selectionElRef.current = null
 
     onSvgReadyRef.current?.(svg)
     return () => onSvgReadyRef.current?.(null)
@@ -166,6 +243,55 @@ export function ScoreView({ document: scoreDocument, cursor, onSvgReady }: Score
 
     target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [cursor])
+
+  /* Realce da seleção de edição (Tarefa 17) — mesmo mecanismo do cursor de
+   *  reprodução acima, `<rect>` próprio para não competir por classe com
+   *  `.cursor` (as duas podem em teoria coexistir na marcação, mesmo que a
+   *  decisão 11 evite que apareçam ao mesmo tempo na prática). */
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const svg = canvas?.querySelector('svg')
+    if (!canvas || !svg) return
+
+    if (!selection) {
+      selectionElRef.current?.remove()
+      return
+    }
+
+    const target = canvas.querySelector<SVGGElement>(
+      `[data-measure="${selection.measureNumber}"][data-element="${selection.elementIndex}"]`,
+    )
+    if (!target) {
+      selectionElRef.current?.remove()
+      return
+    }
+
+    let selectionEl = selectionElRef.current
+    if (!selectionEl) {
+      selectionEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+      selectionEl.setAttribute('class', 'selection')
+      selectionElRef.current = selectionEl
+    }
+
+    const box = target.getBBox()
+    selectionEl.setAttribute('x', String(box.x - CURSOR_PADDING))
+    selectionEl.setAttribute('y', String(box.y - CURSOR_PADDING))
+    selectionEl.setAttribute('width', String(box.width + CURSOR_PADDING * 2))
+    selectionEl.setAttribute('height', String(box.height + CURSOR_PADDING * 2))
+    if (selectionEl.parentNode !== svg) svg.insertBefore(selectionEl, svg.firstChild)
+  }, [selection])
+
+  function handleCanvasClick(event: ReactMouseEvent<HTMLDivElement>): void {
+    if (!onSelectRef.current) return
+    const target = (event.target as Element).closest<SVGGElement>('[data-measure][data-element]')
+    if (!target) {
+      onSelectRef.current(null)
+      return
+    }
+    const measureNumber = Number(target.getAttribute('data-measure'))
+    const elementIndex = Number(target.getAttribute('data-element'))
+    onSelectRef.current({ measureNumber, elementIndex })
+  }
 
   if (!hasNotes) {
     return (
@@ -216,8 +342,20 @@ export function ScoreView({ document: scoreDocument, cursor, onSvgReady }: Score
             <Spinner size="lg" />
           </div>
         )}
-        <div ref={canvasRef} className={styles.canvas} />
+        <div ref={canvasRef} className={styles.canvas} onClick={handleCanvasClick} />
       </div>
+
+      {/* Lista textual das notas a pedido (Tarefa 18, decisão 3) — não é só
+          para leitor de ecrã: também serve a quem simplesmente não sabe
+          ler pauta e quer verificar a transcrição. */}
+      <Button
+        variant="secondary"
+        aria-expanded={notesListOpen}
+        onClick={() => setNotesListOpen((open) => !open)}
+      >
+        {notesListOpen ? notation.hideNotesList : notation.showNotesList}
+      </Button>
+      {notesListOpen && <p className={styles.notesList}>{describeNotes(scoreDocument)}</p>}
     </div>
   )
 }

@@ -112,3 +112,102 @@ export function MinusIcon(props: IconProps) {
     </svg>
   )
 }
+
+/** Biblioteca local (Tarefa 16) — acesso a partir do cabeçalho, eliminação
+ *  e voltar ao ecrã principal. */
+export function LibraryIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 19.5V4.5A1.5 1.5 0 0 1 5.5 3H9v18H5.5A1.5 1.5 0 0 1 4 19.5Z" />
+      <path d="M9 3h9.5A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5H9" />
+      <line x1="13" y1="7" x2="16" y2="7" />
+      <line x1="13" y1="11" x2="16" y2="11" />
+    </svg>
+  )
+}
+
+/** Ecrã de diagnóstico (Tarefa 21) — acesso discreto a partir do cabeçalho. */
+export function WrenchIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2Z" />
+    </svg>
+  )
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 7h16" />
+      <path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" />
+      <path d="M6 7l1 13.5A1.5 1.5 0 0 0 8.5 22h7a1.5 1.5 0 0 0 1.5-1.5L18 7" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  )
+}
+
+export function PencilIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 20h4L18.5 9.5a2.121 2.121 0 0 0-3-3L5 17v3Z" />
+      <line x1="14" y1="7" x2="17" y2="10" />
+    </svg>
+  )
+}
+
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 5 8 12l7 7" />
+    </svg>
+  )
+}
+
+/** Navegação nota a nota por teclado (Tarefa 18, decisão 4) — o SVG da
+ *  pauta (`role="img"`, decisão 3) não é navegável por leitor de ecrã. */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+  )
+}
+
+/** Edição manual (Tarefa 17) — altura por semitom/oitava (decisão 4),
+ *  desfazer/refazer (decisão 7). */
+export function ArrowUpIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <path d="M6 11l6-6 6 6" />
+    </svg>
+  )
+}
+
+export function ArrowDownIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <path d="M6 13l6 6 6-6" />
+    </svg>
+  )
+}
+
+export function UndoIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 7 4 12l5 5" />
+      <path d="M4 12h11a5 5 0 0 1 0 10h-1" />
+    </svg>
+  )
+}
+
+export function RedoIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 7l5 5-5 5" />
+      <path d="M20 12H9a5 5 0 0 0 0 10h1" />
+    </svg>
+  )
+}

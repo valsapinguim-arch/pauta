@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { expectNoA11yViolations } from '@/test/axe'
 import { Alert } from './Alert'
 
 describe('Alert', () => {
@@ -21,5 +22,14 @@ describe('Alert', () => {
       </Alert>,
     )
     expect(screen.getByText('Falha')).toBeInTheDocument()
+  })
+
+  it('não tem violações de acessibilidade', async () => {
+    const { container } = render(
+      <Alert tone="error" title="Falha">
+        Detalhe
+      </Alert>,
+    )
+    await expectNoA11yViolations(container)
   })
 })

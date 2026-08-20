@@ -188,10 +188,11 @@ export default tseslint.config(
     },
   },
 
-  /* Scripts de linha de comandos (`pnpm copy-model-assets`, Tarefa 7) — Node,
-     não browser; `console.log` é a própria razão de existir do script. */
+  /* Scripts de linha de comandos (`pnpm copy-model-assets`, Tarefa 7;
+     `pnpm generate-audio-fixtures`, Tarefa 20) — Node, não browser;
+     `console.log` é a própria razão de existir do script. */
   {
-    files: ['scripts/**/*.js'],
+    files: ['scripts/**/*.js', 'tests/fixtures/audio/generate.js'],
     languageOptions: {
       globals: { ...globals.node },
     },

@@ -9,6 +9,9 @@ import {
 import * as tf from '@tensorflow/tfjs'
 import { setWasmPaths } from '@tensorflow/tfjs-backend-wasm'
 import '@tensorflow/tfjs-backend-wasm'
+import { TRANSCRIBE_WINDOW } from '@/lib/transcribe/constants'
+import { mergeWindowedNotes } from '@/lib/transcribe/mergeWindowedNotes'
+import { planWindows } from '@/lib/transcribe/planWindows'
 import type { NoteEvent } from '@/lib/types'
 import type {
   TranscribeErrorCode,
@@ -148,6 +151,48 @@ function toDomainNoteEvents(
   }))
 }
 
+/**
+ * Transcreve uma janela do áudio (Tarefa 19, decisão 5) — `frames`/
+ * `onsets`/`contours` desta janela ficam fora de alcance assim que a
+ * função devolve, ao contrário de os acumular para a peça inteira antes de
+ * converter. `offsetSec` desloca as notas resultantes de volta para a
+ * linha do tempo completa (esta janela viu só `windowPcm`, que começa em
+ * 0). O `tf.engine().startScope()/endScope()` é por janela, não pela
+ * peça inteira, pela mesma razão da decisão 10 da Tarefa 7 — libertar
+ * tensores intermédios o mais cedo possível.
+ */
+async function transcribeWindow(
+  model: BasicPitch,
+  windowPcm: Float32Array,
+  offsetSec: number,
+  windowIndex: number,
+  windowCount: number,
+): Promise<NoteEvent[]> {
+  const frames: number[][] = []
+  const onsets: number[][] = []
+  const contours: number[][] = []
+
+  tf.engine().startScope()
+  try {
+    await model.evaluateModel(
+      windowPcm,
+      (f, o, c) => {
+        frames.push(...f)
+        onsets.push(...o)
+        contours.push(...c)
+      },
+      (percent) => postProgress('transcribing', (windowIndex + percent) / windowCount),
+    )
+  } finally {
+    tf.engine().endScope()
+  }
+
+  return toDomainNoteEvents(frames, onsets, contours).map((note) => ({
+    ...note,
+    startSec: note.startSec + offsetSec,
+  }))
+}
+
 self.onmessage = async (event: MessageEvent<TranscribeRequest>) => {
   const { pcm, sampleRate } = event.data
 
@@ -161,33 +206,33 @@ self.onmessage = async (event: MessageEvent<TranscribeRequest>) => {
 
     const model = await ensureModelReady()
 
-    const frames: number[][] = []
-    const onsets: number[][] = []
-    const contours: number[][] = []
+    // Processamento por blocos (Tarefa 19, decisão 5) — nunca um só buffer
+    // entregue ao modelo de uma vez: o pico de memória de `frames`/
+    // `onsets`/`contours` fica proporcional ao tamanho da janela, não à
+    // duração total. `pcm.subarray` não copia amostras (só o resultado de
+    // cada janela é novo). As janelas sobrepõem-se (`planWindows`) e os
+    // fragmentos da mesma nota nas fronteiras fundem-se a seguir
+    // (`mergeWindowedNotes`, que reaproveita `mergeFragmented` da Tarefa 8).
+    const windows = planWindows(
+      pcm.length,
+      sampleRate,
+      TRANSCRIBE_WINDOW.WINDOW_SEC,
+      TRANSCRIBE_WINDOW.OVERLAP_SEC,
+    )
 
-    /* `evaluateModel` é assíncrono (múltiplos `await` entre janelas) — não dá
-       para usar `tf.tidy()`, que exige uma função síncrona. `startScope`/
-       `endScope` são os mesmos primitivos que `tidy()` usa por baixo, e
-       funcionam através de `await`s. Necessário porque `evaluateModel` (do
-       próprio `@spotify/basic-pitch`) não liberta os tensores intermédios
-       que cria a cada janela — sem isto, memória cresce a cada transcrição
-       dentro do mesmo worker reutilizado (Tarefa 7, decisão 10). */
-    tf.engine().startScope()
-    try {
-      await model.evaluateModel(
-        pcm,
-        (f, o, c) => {
-          frames.push(...f)
-          onsets.push(...o)
-          contours.push(...c)
-        },
-        (percent) => postProgress('transcribing', percent),
+    const perWindowNotes: NoteEvent[][] = []
+    for (const window of windows) {
+      const windowNotes = await transcribeWindow(
+        model,
+        pcm.subarray(window.startSample, window.endSample),
+        window.offsetSec,
+        window.index,
+        window.count,
       )
-    } finally {
-      tf.engine().endScope()
+      perWindowNotes.push(windowNotes)
     }
 
-    const notes = toDomainNoteEvents(frames, onsets, contours)
+    const notes = mergeWindowedNotes(perWindowNotes, TRANSCRIBE_WINDOW.BOUNDARY_MERGE_GAP_MS)
     const result: TranscribeResultMessage = { type: 'result', notes }
     postTyped(result)
   } catch (error) {

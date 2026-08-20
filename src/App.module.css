@@ -11,7 +11,28 @@
 }
 
 .header {
+  position: relative;
   text-align: center;
+  /* Sem isto, o cabeçalho encolhe para caber só no texto "pauta" (`.main`
+   *  usa `align-items: center`, que não estica os filhos por omissão) — o
+   *  `right: 0` de `.headerActions` ficava a ancorar a essa caixa estreita
+   *  em vez de à margem direita real da coluna, pondo os ícones quase em
+   *  cima do título (bug real, visto numa sessão de testes manual). */
+  width: 100%;
+}
+
+/** Canto superior direito do cabeçalho — Biblioteca (Tarefa 16) e
+ *  Diagnóstico (Tarefa 21) lado a lado, nunca sobrepostos: um `IconButton`
+ *  sozinho aqui usava `position: absolute` diretamente; com dois, isso
+ *  empilhava-os no mesmo sítio e o segundo (Diagnóstico, por vir depois no
+ *  DOM) roubava todos os cliques ao primeiro (Biblioteca), que ficava
+ *  visualmente presente mas inacessível ao rato/toque. */
+.headerActions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: var(--space-1);
 }
 
 .name {

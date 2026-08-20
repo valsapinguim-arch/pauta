@@ -14,6 +14,10 @@ export const app = {
 export const idle = {
   recordButton: 'Gravar',
   recordButtonHint: 'Toca para começar a gravar',
+  /** Limite efetivo de duração, sempre visível (Tarefa 19, decisão 4) — o
+   *  valor pode ser mais baixo do que o teto de 60 s num dispositivo
+   *  detetado como fraco; nunca fica implícito. */
+  maxDurationNotice: (seconds: number) => `Duração máxima: ${seconds} s`,
   pickFile: 'Usar um ficheiro de áudio',
   dropHint: 'Ou arrasta um ficheiro de áudio para aqui',
 
@@ -51,11 +55,16 @@ export const idle = {
    * `@/strings/errors.ts`): o ficheiro é válido, só mais longo do que a app
    * consegue transcrever de uma vez. A duração original mostra-se ao lado,
    * formatada com `formatElapsed` — não faz parte deste texto estático.
+   *
+   * Funções, não texto fixo, desde a Tarefa 19 (decisão 4): o limite já não
+   * é sempre 60 s — pode ser mais baixo num dispositivo detetado como
+   * fraco (`MAX_RECORDING_MS`, `@/features/capture`), e o texto tem de
+   * refletir o valor efetivo, nunca um número que possa estar errado.
    */
   truncateTitle: 'Ficheiro mais longo do que o limite',
-  truncateBody:
-    'Só é possível transcrever até 60 segundos de cada vez. Continuar só com o início do ficheiro?',
-  truncateConfirm: 'Usar os primeiros 60 segundos',
+  truncateBody: (seconds: number) =>
+    `Só é possível transcrever até ${seconds} segundos de cada vez. Continuar só com o início do ficheiro?`,
+  truncateConfirm: (seconds: number) => `Usar os primeiros ${seconds} segundos`,
   truncateCancel: 'Cancelar',
 } as const
 
@@ -78,6 +87,11 @@ export const processingStage = {
 export const processing = {
   cancel: 'Cancelar',
   progressLabel: 'Progresso da transcrição',
+  /** Anúncio por marcos (Tarefa 18, decisão 2) — 25/50/75%, nunca a cada
+   *  atualização de `progress`; `milestoneReached` compõe com a
+   *  percentagem, `milestoneComplete` é o marco final. */
+  milestoneReached: (percent: number) => `${percent}% concluído`,
+  milestoneComplete: 'Concluído',
 } as const
 
 export const result = {
@@ -148,12 +162,62 @@ export const exportPanel = {
   errorBody: 'Tenta outra vez — se persistir, tenta um dos outros formatos.',
 } as const
 
+/** Biblioteca local (Tarefa 16) — `LibraryView`, via `useLibrary` e
+ *  `useLibraryAutosave`. */
+export const library = {
+  openButton: 'Biblioteca',
+  closeButton: 'Fechar biblioteca',
+  title: 'Biblioteca',
+
+  /** Decisão 10: sempre visível, nunca atrás de ajuda. */
+  localStorageNotice:
+    'As transcrições ficam guardadas só neste dispositivo. Limpar os dados do browser apaga-as — para as guardar a sério, exporta-as.',
+
+  emptyTitle: 'Ainda não há nada guardado',
+  emptyBody: 'As transcrições ficam aqui automaticamente assim que gravares uma.',
+
+  loading: 'A carregar…',
+
+  open: 'Abrir',
+  rename: 'Renomear',
+  renameLabel: 'Novo título',
+  renameConfirm: 'Guardar',
+  renameCancel: 'Cancelar',
+  remove: 'Eliminar',
+
+  /** Confirmação de eliminação (Âmbito técnico) — mesmo padrão do
+   *  explicador de permissão em `IdleView`, sem diálogo modal novo. */
+  removeConfirmTitle: 'Eliminar esta transcrição?',
+  removeConfirmBody: 'Não é possível desfazer. Exporta primeiro se quiseres guardá-la.',
+  removeConfirmAction: 'Eliminar',
+  removeCancelAction: 'Cancelar',
+
+  /** Registo com `schemaVersion` de uma versão mais recente da app —
+   *  decisão 7. Só pode ser eliminado, nunca aberto. */
+  illegibleTitle: 'Transcrição ilegível',
+  illegibleBody: 'Foi guardada por uma versão mais recente da app e não pode ser aberta aqui.',
+
+  /** Falha de escrita (decisão 8) — o resultado continua no ecrã, só não
+   *  ficou guardado. */
+  saveErrorTitle: 'Não foi possível guardar',
+  saveErrorBody: 'A transcrição continua visível no ecrã, mas a alteração não ficou guardada.',
+
+  quotaWarningTitle: 'Armazenamento quase cheio',
+  quotaWarningBody: 'Exporta e elimina transcrições antigas para libertar espaço.',
+} as const
+
 /** Textos de `@/features/notation/ScoreView` — Tarefa 13. */
 export const notation = {
   /** Documento sem notas nenhumas — nunca um pentagrama vazio (decisão 9,
    *  Âmbito técnico). */
   emptyTitle: 'Nada para desenhar',
   emptyBody: 'A transcrição não teve notas suficientes para desenhar uma pauta.',
+
+  /** Lista textual das notas a pedido (Tarefa 18, decisão 3) — útil a quem
+   *  usa leitor de ecrã e a quem simplesmente quer verificar a transcrição
+   *  sem saber ler pauta. */
+  showNotesList: 'Ver notas em texto',
+  hideNotesList: 'Esconder notas em texto',
 
   decreaseZoom: 'Diminuir o zoom',
   increaseZoom: 'Aumentar o zoom',
@@ -165,4 +229,49 @@ export const notation = {
     'As notas detetadas têm baixa confiança. Tenta gravar outra vez num sítio mais silencioso.',
   lowConfidenceTempo: 'O andamento pode estar errado — corrige-o abaixo, junto ao BPM.',
   lowConfidenceKey: 'A tonalidade pode estar errada — corrige-a abaixo.',
+} as const
+
+/** Edição manual (Tarefa 17) — `EditToolbar` e os controlos de
+ *  transposição/desfazer em `ResultView`. Só cinco operações (decisão 1):
+ *  altura, duração, eliminar, inserir, transpor — nada de vozes, acordes,
+ *  dinâmica ou articulações aqui. */
+export const edit = {
+  pitchLabel: 'Altura',
+  decreaseSemitone: 'Descer um semitom',
+  increaseSemitone: 'Subir um semitom',
+  decreaseOctave: 'Descer uma oitava',
+  increaseOctave: 'Subir uma oitava',
+
+  durationLabel: 'Duração',
+  /** Nomes pt-PT das figuras (Tarefa 10) — só usados aqui; o resto da app
+   *  nunca mostrou a duração como texto até agora. */
+  noteTypeNames: {
+    whole: 'Semibreve',
+    half: 'Mínima',
+    quarter: 'Semínima',
+    eighth: 'Colcheia',
+    sixteenth: 'Semicolcheia',
+  },
+  toggleDot: 'Alternar ponto de aumento',
+
+  deleteNote: 'Eliminar nota',
+  insertNote: 'Inserir nota',
+  closeToolbar: 'Fechar edição',
+
+  /** Navegação nota a nota por teclado (Tarefa 18, decisão 4) — o SVG da
+   *  pauta não é navegável por leitor de ecrã (`role="img"`, decisão 3). */
+  previousNote: 'Nota anterior',
+  nextNote: 'Nota seguinte',
+
+  transposeLabel: 'Transpor',
+  decreaseTranspose: 'Transpor um semitom abaixo',
+  increaseTranspose: 'Transpor um semitom acima',
+
+  undo: 'Desfazer',
+  redo: 'Refazer',
+
+  /** Decisão 8: uma edição que invalidaria o documento é recusada — este é
+   *  o aviso, não uma mensagem genérica de erro. */
+  errorTitle: 'Não foi possível aplicar a edição',
+  errorBody: 'O documento ficaria inválido — a alteração não foi guardada.',
 } as const
